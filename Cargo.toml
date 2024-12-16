@@ -4,3 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+crossbeam = "0.8.4"
+wg_internal = { git = "https://github.com/WGL-2024/WGL_repo_2024.git", features = [
+    "debug",
+] }
