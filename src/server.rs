@@ -1,5 +1,5 @@
 use crossbeam::channel::{Receiver, Sender};
-use packet_forge::{MessageType, PacketForge, TextMessage};
+use packet_forge::{ClientType, FileMetadata, MessageType, PacketForge, SubscribeClient};
 use std::{collections::HashMap, thread, time::Duration};
 use wg_internal::controller::{DroneCommand, DroneEvent};
 use wg_internal::network::NodeId;
@@ -56,25 +56,18 @@ impl Server {
                         Ok(message) => message,
                         Err(e) => panic!("Error: {e}"),
                     };
-
                     match assembled {
-                        MessageType::TestContent(content) => {
-                            println!("Server {} received a test content: {:?}", self.id, content);
+                        MessageType::SubscribeClient(content) => {
+                            println!(
+                                "Server {} received a SubscribeClient message: {:?}",
+                                self.id, content
+                            );
                         }
-                        MessageType::TextMessage(content) => {
-                            println!("Server {} received a text message: {:?}", self.id, content);
+                        _ => {
+                            println!("Server {} received an unimplemented message", self.id);
                         }
                     }
 
-                    // let res = self.packet_forge.assemble::<TextMessage>(fragments.clone());
-                    // match res {
-                    //     Ok(msg) => {
-                    //         println!("Server {} received a text message: {:?}", self.id, msg);
-                    //     }
-                    //     Err(err) => {
-                    //         eprintln!("Error parsing message for server {}: {:?}", self.id, err);
-                    //     }
-                    // }
                     self.packets_map.remove(&session_id);
                 }
             }
@@ -124,11 +117,20 @@ impl Server {
             }
 
             // Message sending logic
-            let text_msg =
-                TextMessage::new(String::from("ciao"), String::from("30"), String::from("20"));
+            let i = 1;
+            let file_metadata = FileMetadata {
+                file_name: format!("file_{}", i),
+                file_size: i * 1000,
+                file_chunks: i as u16,
+            };
+            let content = SubscribeClient {
+                client_type: ClientType::Audio,
+                available_files: vec![(file_metadata, String::from("hash"))],
+            };
+
             if let Ok(packets) = self
                 .packet_forge
-                .disassemble(text_msg.clone(), vec![30, 1, 20])
+                .disassemble(content.clone(), vec![30, 1, 20])
             {
                 for packet in packets {
                     let id = 1;
@@ -143,7 +145,7 @@ impl Server {
                     }
                 }
             } else {
-                eprintln!("Error disassembling message: {text_msg:?}");
+                eprintln!("Error disassembling message: {content:?}");
             }
         }
     }
