@@ -1,5 +1,5 @@
 use crossbeam::channel::{Receiver, Sender};
-use packet_forge::{PacketForge, TextMessage};
+use packet_forge::{MessageType, PacketForge, TextMessage};
 use std::{collections::HashMap, thread, time::Duration};
 use wg_internal::controller::{DroneCommand, DroneEvent};
 use wg_internal::network::NodeId;
@@ -52,15 +52,29 @@ impl Server {
                 let fragments = self.packets_map.get(&session_id).unwrap();
                 let total_fragments = fragments[0].total_n_fragments;
                 if fragments.len() as u64 == total_fragments {
-                    let res = self.packet_forge.assemble::<TextMessage>(fragments.clone());
-                    match res {
-                        Ok(msg) => {
-                            println!("Server {} received a text message: {:?}", self.id, msg);
+                    let assembled = match self.packet_forge.assemble_dynamic(fragments.clone()) {
+                        Ok(message) => message,
+                        Err(e) => panic!("Error: {e}"),
+                    };
+
+                    match assembled {
+                        MessageType::TestContent(content) => {
+                            println!("Server {} received a test content: {:?}", self.id, content);
                         }
-                        Err(err) => {
-                            eprintln!("Error parsing message for server {}: {:?}", self.id, err);
+                        MessageType::TextMessage(content) => {
+                            println!("Server {} received a text message: {:?}", self.id, content);
                         }
                     }
+
+                    // let res = self.packet_forge.assemble::<TextMessage>(fragments.clone());
+                    // match res {
+                    //     Ok(msg) => {
+                    //         println!("Server {} received a text message: {:?}", self.id, msg);
+                    //     }
+                    //     Err(err) => {
+                    //         eprintln!("Error parsing message for server {}: {:?}", self.id, err);
+                    //     }
+                    // }
                     self.packets_map.remove(&session_id);
                 }
             }
@@ -112,7 +126,10 @@ impl Server {
             // Message sending logic
             let text_msg =
                 TextMessage::new(String::from("ciao"), String::from("30"), String::from("20"));
-            if let Ok(packets) = self.packet_forge.disassemble(&text_msg, vec![30, 1, 20]) {
+            if let Ok(packets) = self
+                .packet_forge
+                .disassemble(text_msg.clone(), vec![30, 1, 20])
+            {
                 for packet in packets {
                     let id = 1;
                     if let Some(sender) = self.senders.get(&id) {
