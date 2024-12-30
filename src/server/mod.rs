@@ -1,17 +1,23 @@
+mod commands_handler;
 mod logger_settings;
 mod messages_handler;
 
 use crossbeam::channel::{select_biased, Receiver, Sender};
+use logger::{LogLevel, Logger};
 use packet_forge::{ClientType, FileHash, FileMetadata, MessageType, PacketForge, SubscribeClient};
-use std::{collections::{HashMap, HashSet}, hash::Hash, thread, time::Duration};
+use std::{
+    collections::{HashMap, HashSet},
+    hash::Hash,
+    thread,
+    time::Duration,
+};
 use wg_internal::controller::{DroneCommand, DroneEvent};
 use wg_internal::network::NodeId;
 use wg_internal::packet::{Fragment, Packet, PacketType};
-use logger::{LogLevel, Logger};
 
 #[derive(Debug, Clone)]
 struct ClientInfo {
-    pub client_type: ClientType,          // "audio" or "video"
+    pub client_type: ClientType,         // "audio" or "video"
     pub shared_files: HashSet<FileHash>, // Files shared by this client
 }
 
@@ -30,11 +36,10 @@ pub struct Server {
     packet_forge: PacketForge,
     packets_map: HashMap<(NodeId, u64), Vec<Fragment>>, // (client_id, session_id) -> fragment
     terminated: bool,
-
     // Storage data structures
     clients: HashMap<NodeId, ClientInfo>,
     files: HashMap<FileHash, FileEntry>,
-
+    // Logger
     logger: Logger,
 }
 
@@ -65,18 +70,6 @@ impl Server {
     #[must_use]
     pub fn get_id(&self) -> NodeId {
         self.id
-    }
-
-    fn command_dispatcher(&mut self, command: &DroneCommand) {
-        match command {
-            DroneCommand::Crash => {
-                println!("Server {} received a crash command", self.id);
-                self.terminated = true;
-            }
-            _ => {
-                println!("Server {} unimplemented command", self.id);
-            }
-        }
     }
 
     pub fn run(&mut self) {
