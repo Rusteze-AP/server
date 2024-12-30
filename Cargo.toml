@@ -9,3 +9,4 @@ wg_internal = { git = "https://github.com/WGL-2024/WGL_repo_2024.git", features 
     "debug",
 ] }
 packet_forge = { git = "ssh://git@github.com/Rusteze-AP/packet-forge.git", branch = "main" }
+logger = { git = "https://github.com/Rusteze-AP/logger.git", branch = "main" }
