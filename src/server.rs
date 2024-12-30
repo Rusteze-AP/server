@@ -124,6 +124,7 @@ impl Server {
                 file_chunks: i as u16,
             };
             let content = SubscribeClient {
+                client_id: i as u8,
                 client_type: ClientType::Audio,
                 available_files: vec![(file_metadata, String::from("hash"))],
             };
