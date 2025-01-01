@@ -16,15 +16,15 @@ use wg_internal::network::NodeId;
 use wg_internal::packet::{Fragment, Packet, PacketType};
 
 #[derive(Debug, Clone)]
-struct ClientInfo {
+pub struct ClientInfo {
     pub client_type: ClientType,         // "audio" or "video"
     pub shared_files: HashSet<FileHash>, // Files shared by this client
 }
 
 #[derive(Debug, Clone)]
-struct FileEntry {
-    file_metadata: FileMetadata,
-    peers: HashSet<NodeId>, // List of clients sharing the file
+pub struct FileEntry {
+    pub file_metadata: FileMetadata,
+    pub peers: HashSet<NodeId>, // List of clients sharing the file
 }
 
 pub struct Server {
