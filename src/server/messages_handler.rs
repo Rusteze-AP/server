@@ -1,52 +1,16 @@
-use super::{ClientInfo, FileEntry, Server};
+use super::{ClientInfo, Server};
 
 use crate::utils::*;
-use logger::Logger;
 use packet_forge::*;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use wg_internal::{
-    config::Client,
     network::NodeId,
     packet::{Packet, PacketType},
 };
 
 impl Server {
-    /// Add a new entry to `files` HashMap. If the file exists, add the new client to the peers otherwise create a new entry.
-    fn add_to_files(
-        &mut self,
-        client_id: NodeId,
-        file_hash: FileHash,
-        file_metadata: &FileMetadata,
-    ) {
-        self.files
-            .entry(file_hash)
-            .and_modify(|entry| {
-                // If the file exists, add the new client to the peers
-                entry.peers.insert(client_id.clone());
-            })
-            .or_insert(FileEntry {
-                file_metadata: file_metadata.clone(),
-                peers: HashSet::from([client_id]),
-            });
-    }
-
-    fn check_hash(logger: &Logger, file_hash: FileHash, file_metadata: &FileMetadata) -> bool {
-        if file_hash != file_metadata.compact_hash_u16() {
-            logger.log_warn(
-                format!(
-                    "File hash mismatch: [ {:?} ] != [ {:?} ]",
-                    file_hash,
-                    file_metadata.compact_hash_u16()
-                )
-                .as_str(),
-            );
-            return false;
-        }
-        true
-    }
-
     fn subscribe_client(&mut self, client_id: NodeId, client_info: SubscribeClient) {
-        // TODO check the correctness of the file hash and metadata
+        // Check if client is already subscribed
         if self.clients.contains_key(&client_id) {
             self.logger.log_warn(
                 format!(
@@ -60,7 +24,8 @@ impl Server {
             let mut shared_files = HashSet::new();
 
             for (file_metadata, file_hash) in client_info.available_files {
-                if !Self::check_hash(&self.logger, file_hash, &file_metadata) {
+                if let Err(err) = Self::check_hash(file_hash, &file_metadata) {
+                    self.logger.log_error(err.as_str());
                     continue;
                 }
 
@@ -82,34 +47,6 @@ impl Server {
         }
     }
 
-    fn add_shared_file(&mut self, client_id: NodeId, file_hash: FileHash) {
-        if let Some(client_info) = self.clients.get_mut(&client_id) {
-            client_info.shared_files.insert(file_hash);
-            return;
-        }
-
-        self.logger.log_error(
-            format!(
-                "Could not retrieve [Client-{}] from available clients.",
-                client_id
-            )
-            .as_str(),
-        );
-    }
-
-    fn remove_shared_file(&mut self, client_id: NodeId, file_hash: FileHash) {
-        if let Some(client_info) = self.clients.get_mut(&client_id) {
-            client_info.shared_files.remove(&file_hash);
-        }
-        self.logger.log_error(
-            format!(
-                "Could not retrieve [Client-{}] from available clients.",
-                client_id
-            )
-            .as_str(),
-        );
-    }
-
     fn update_file_list(&mut self, client_id: NodeId, files: UpdateFileList) {
         self.logger
             .log_debug(format!("Updating file list of [Client-{}]...", client_id).as_str());
@@ -126,7 +63,8 @@ impl Server {
         }
 
         for (file_metadata, file_hash, file_status) in files.updated_files {
-            if !Self::check_hash(&self.logger, file_hash, &file_metadata) {
+            if let Err(err) = Self::check_hash(file_hash, &file_metadata) {
+                self.logger.log_error(err.as_str());
                 continue;
             }
 
@@ -154,6 +92,10 @@ impl Server {
         self.logger.log_debug("File list updated!");
     }
 
+    fn send_file_list(&self) {
+        todo!()
+    }
+
     pub(crate) fn handle_message(&mut self, client_id: NodeId, message: MessageType) {
         match message {
             MessageType::SubscribeClient(client_info) => {
@@ -163,7 +105,7 @@ impl Server {
                 self.update_file_list(client_id, files);
             }
             MessageType::RequestFileList(files) => {
-                todo!();
+                self.send_file_list();
             }
             MessageType::RequestPeerList(file) => {
                 todo!();

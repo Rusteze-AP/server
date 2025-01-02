@@ -1,19 +1,15 @@
 mod commands_handler;
 mod logger_settings;
 mod messages_handler;
+mod utils;
 
 use crossbeam::channel::{select_biased, Receiver, Sender};
 use logger::{LogLevel, Logger};
-use packet_forge::{ClientType, FileHash, FileMetadata, MessageType, PacketForge, SubscribeClient};
-use std::{
-    collections::{HashMap, HashSet},
-    hash::Hash,
-    thread,
-    time::Duration,
-};
+use packet_forge::{ClientType, FileHash, FileMetadata, PacketForge};
+use std::collections::{HashMap, HashSet};
 use wg_internal::controller::{DroneCommand, DroneEvent};
 use wg_internal::network::NodeId;
-use wg_internal::packet::{Fragment, Packet, PacketType};
+use wg_internal::packet::{Fragment, Packet};
 
 #[derive(Debug, Clone)]
 pub struct ClientInfo {
