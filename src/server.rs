@@ -2,7 +2,7 @@ use crossbeam::channel::{Receiver, Sender};
 use packet_forge::{ClientType, FileMetadata, MessageType, PacketForge, SubscribeClient};
 use std::{collections::HashMap, thread, time::Duration};
 use wg_internal::controller::{DroneCommand, DroneEvent};
-use wg_internal::network::NodeId;
+use wg_internal::network::{NodeId, SourceRoutingHeader};
 use wg_internal::packet::{Fragment, Packet, PacketType};
 
 #[derive(Debug, Clone)]
@@ -126,12 +126,13 @@ impl Server {
             let content = SubscribeClient {
                 client_id: i as u8,
                 client_type: ClientType::Audio,
-                available_files: vec![(file_metadata, String::from("hash"))],
+                available_files: vec![(file_metadata, 1234)],
             };
-
+            
+            let srh = SourceRoutingHeader::new(vec![30, 1, 20], 1);
             if let Ok(packets) = self
                 .packet_forge
-                .disassemble(content.clone(), vec![30, 1, 20])
+                .disassemble(content.clone(), srh)
             {
                 for packet in packets {
                     let id = 1;
