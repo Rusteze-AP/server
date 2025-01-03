@@ -1,121 +1,204 @@
 use super::{ClientInfo, Server};
 
-use crate::utils::*;
+use crate::{
+    packet_send::{get_sender, send_packet},
+    utils::*,
+};
 use packet_forge::*;
 use std::collections::HashSet;
-use wg_internal::{
-    network::NodeId,
-    packet::{Packet, PacketType},
-};
+use wg_internal::packet::{Packet, PacketType};
 
 impl Server {
-    fn subscribe_client(&mut self, client_id: NodeId, client_info: SubscribeClient) {
+    fn subscribe_client(&mut self, message: SubscribeClient) {
         // Check if client is already subscribed
-        if self.clients.contains_key(&client_id) {
+        if self.clients.contains_key(&message.client_id) {
             self.logger.log_warn(
                 format!(
-                    "Received SubscribeClient message but [Client {}] already exists!",
-                    client_id
-                )
-                .as_str(),
-            );
-        } else {
-            // Files shared by the client
-            let mut shared_files = HashSet::new();
-
-            for (file_metadata, file_hash) in client_info.available_files {
-                if let Err(err) = Self::check_hash(file_hash, &file_metadata) {
-                    self.logger.log_error(err.as_str());
-                    continue;
-                }
-
-                // Collect file_hash into shared_files
-                shared_files.insert(file_hash);
-
-                // Insert files data into files
-                self.add_to_files(client_id, file_hash, &file_metadata);
-            }
-
-            // Insert the client into the clients map
-            self.clients.insert(
-                client_id,
-                ClientInfo {
-                    client_type: client_info.client_type,
-                    shared_files,
-                },
-            );
-        }
-    }
-
-    fn update_file_list(&mut self, client_id: NodeId, files: UpdateFileList) {
-        self.logger
-            .log_debug(format!("Updating file list of [Client-{}]...", client_id).as_str());
-
-        if !self.clients.contains_key(&client_id) {
-            self.logger.log_warn(
-                format!(
-                    "Received UpdateFileList for [Client-{}] but no client was found. File list: {:?}",
-                    client_id, files.updated_files
+                    "[SERVER-{}] Received SubscribeClient message but [Client {}] already exists!",
+                    self.id, message.client_id
                 )
                 .as_str(),
             );
             return;
         }
 
-        for (file_metadata, file_hash, file_status) in files.updated_files {
+        self.logger.log_debug(
+            format!(
+                "[SERVER-{}] Handling SubscribeClient message for [Client-{}]...",
+                self.id, message.client_id
+            )
+            .as_str(),
+        );
+        // Files shared by the client
+        let mut shared_files = HashSet::new();
+
+        for (file_metadata, file_hash) in message.available_files {
             if let Err(err) = Self::check_hash(file_hash, &file_metadata) {
-                self.logger.log_error(err.as_str());
+                self.logger
+                    .log_error(format!("[SERVER-{}] {}", self.id, err).as_str());
+                continue;
+            }
+
+            // Collect file_hash into shared_files
+            shared_files.insert(file_hash);
+
+            // Insert files data into files
+            self.add_to_files(message.client_id, file_hash, &file_metadata);
+        }
+
+        // Insert the client into the clients map
+        self.clients.insert(
+            message.client_id,
+            ClientInfo {
+                client_type: message.client_type,
+                shared_files,
+            },
+        );
+    }
+
+    fn update_file_list(&mut self, message: UpdateFileList) {
+        self.logger.log_debug(
+            format!(
+                "[SERVER-{}] Updating file list of [Client-{}]...",
+                self.id, message.client_id
+            )
+            .as_str(),
+        );
+
+        if !self.clients.contains_key(&message.client_id) {
+            self.logger.log_warn(
+                format!(
+                    "[SERVER-{}] Received UpdateFileList for [Client-{}] but no client was found. File list: {:?}",
+                    self.id, message.client_id, message.updated_files
+                )
+                .as_str(),
+            );
+            return;
+        }
+
+        for (file_metadata, file_hash, file_status) in message.updated_files {
+            if let Err(err) = Self::check_hash(file_hash, &file_metadata) {
+                self.logger
+                    .log_error(format!("[SERVER-{}] {}", self.id, err).as_str());
                 continue;
             }
 
             match file_status {
                 FileStatus::New => {
                     // Update the list of files shared by `client_id`
-                    self.add_shared_file(client_id, file_hash);
+                    self.add_shared_file(message.client_id, file_hash);
                     // Update the file information stored in `files`
-                    self.add_to_files(client_id, file_hash, &file_metadata);
+                    self.add_to_files(message.client_id, file_hash, &file_metadata);
 
-                    self.logger
-                        .log_info(format!("Added new File [ {:?} ]", file_metadata).as_str());
+                    self.logger.log_info(
+                        format!(
+                            "[SERVER-{}] Added new File [ {:?} ]",
+                            self.id, file_metadata
+                        )
+                        .as_str(),
+                    );
                 }
                 FileStatus::Deleted => {
                     // Update the list of files shared by `client_id`
-                    self.remove_shared_file(client_id, file_hash);
+                    self.remove_shared_file(message.client_id, file_hash);
                     // Remove the `file_hash` entry in `files`
                     self.files.remove_entry(&file_hash);
 
-                    self.logger
-                        .log_info(format!("Removed File [ {:?} ]", file_metadata).as_str());
+                    self.logger.log_info(
+                        format!("[SERVER-{}] Removed File [ {:?} ]", self.id, file_metadata)
+                            .as_str(),
+                    );
                 }
             };
         }
-        self.logger.log_debug("File list updated!");
+        self.logger
+            .log_debug(format!("[SERVER-{}] File list updated!", self.id).as_str());
     }
 
-    fn send_file_list(&self) {
+    fn send_file_list(&mut self, message: RequestFileList) {
+        let file_list = ResponseFileList::new(Vec::from(
+            self.files
+                .iter()
+                .map(|(file_hash, file_entry)| (file_entry.file_metadata.clone(), *file_hash))
+                .collect::<Vec<(FileMetadata, FileHash)>>(),
+        ));
+
+        // Retrieve best path otherwise return
+        let Some(srh) = self.routing_handler.best_path(self.id, message.client_id) else {
+            self.logger.log_error(
+                format!(
+                    "[SERVER-{}][SEND FILE LIST] Could not retrieve path from {} to {}!",
+                    self.id, self.id, message.client_id
+                )
+                .as_str(),
+            );
+            return;
+        };
+
+        // Disassemble ResponseFileList into Packets
+        let Ok(packets) = self
+            .packet_forge
+            .disassemble(file_list.clone(), srh.clone())
+        else {
+            self.logger.log_error(format!("[SERVER-{}] Error disassembling ResponseFileList message! (log_info to see more information)", self.id).as_str());
+            self.logger.log_info(
+                format!("[SERVER-{}] ResponseFileList: {:?}", self.id, file_list).as_str(),
+            );
+            return;
+        };
+
+        // Get the sender channel for the next hop and forward
+        let next_hop = srh.hops[srh.hop_index];
+        let sender = get_sender(next_hop, &self.packet_send);
+        if sender.is_err() {
+            self.logger
+                .log_error(format!("[SERVER-{}] {}", self.id, &sender.unwrap_err()).as_str());
+            return;
+        }
+        let sender = sender.unwrap();
+
+        for packet in packets {
+            if let Err(err) = send_packet(&sender, &packet) {
+                self.logger.log_error(format!("[SERVER-{}] Failed to send packet fragment to [DRONE-{}] (use log_info to see more information)", self.id, next_hop).as_str());
+                self.logger.log_info(
+                    format!("[SERVER-{}] Packet: {}\n Error: {}", self.id, packet, err).as_str(),
+                );
+            }
+        }
+    }
+
+    fn send_peer_list(&self) {
         todo!()
     }
 
-    pub(crate) fn handle_message(&mut self, client_id: NodeId, message: MessageType) {
+    fn unsubscribe_client(&mut self) {
+        todo!()
+    }
+
+    pub(crate) fn handle_message(&mut self, message: MessageType) {
         match message {
-            MessageType::SubscribeClient(client_info) => {
-                self.subscribe_client(client_id, client_info);
+            MessageType::SubscribeClient(msg) => {
+                self.subscribe_client(msg);
             }
-            MessageType::UpdateFileList(files) => {
-                self.update_file_list(client_id, files);
+            MessageType::UpdateFileList(msg) => {
+                self.update_file_list(msg);
             }
-            MessageType::RequestFileList(files) => {
-                self.send_file_list();
+            MessageType::RequestFileList(msg) => {
+                self.send_file_list(msg);
             }
-            MessageType::RequestPeerList(file) => {
-                todo!();
+            MessageType::RequestPeerList(msg) => {
+                self.send_peer_list();
             }
-            MessageType::UnsubscribeClient(client) => {
-                todo!();
+            MessageType::UnsubscribeClient(msg) => {
+                self.unsubscribe_client();
             }
             _ => {
                 self.logger.log_error(
-                    format!("Unexpected message type received: {:#?}", message).as_str(),
+                    format!(
+                        "[SERVER-{}] Unexpected message type received: {:#?}",
+                        self.id, message
+                    )
+                    .as_str(),
                 );
             }
         }
@@ -138,25 +221,28 @@ impl Server {
                         let assembled = match self.packet_forge.assemble_dynamic(fragments.clone())
                         {
                             Ok(message) => message,
-                            Err(e) => panic!("Error: {e}"),
+                            Err(e) => panic!("[SERVER-{}] Error: {}", self.id, e),
                         };
 
-                        self.handle_message(client_id, assembled);
+                        self.handle_message(assembled);
                     }
                     return;
                 }
 
                 self.logger.log_warn(
                     format!(
-                        "Server {} received a fragment with destination: {:?}",
+                        "[SERVER-{}] Received a fragment with destination: {:?}",
                         self.id,
                         packet.routing_header.hops.last()
                     )
                     .as_str(),
                 );
             }
+            PacketType::FloodResponse(flood_res) => {
+                todo!()
+            }
             _ => {
-                println!("Server {} received a packet: {:?}", self.id, packet);
+                println!("[SERVER-{}] Received a packet: {:?}", self.id, packet);
             }
         }
     }
