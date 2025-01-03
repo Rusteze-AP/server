@@ -1,4 +1,5 @@
 mod commands_handler;
+mod flooding;
 mod logger_settings;
 mod messages_handler;
 mod utils;
@@ -6,6 +7,7 @@ mod utils;
 use crossbeam::channel::{select_biased, Receiver, Sender};
 use logger::{LogLevel, Logger};
 use packet_forge::{ClientType, FileHash, FileMetadata, PacketForge};
+use routing_handler::RoutingHandler;
 use std::collections::{HashMap, HashSet};
 use wg_internal::controller::{DroneCommand, DroneEvent};
 use wg_internal::network::NodeId;
@@ -28,13 +30,17 @@ pub struct Server {
     controller_send: Sender<DroneEvent>,
     controller_recv: Receiver<DroneCommand>,
     packet_recv: Receiver<Packet>,
-    senders: HashMap<NodeId, Sender<Packet>>,
+    packet_send: HashMap<NodeId, Sender<Packet>>,
+    terminated: bool,
+    // Handle incoming packages
     packet_forge: PacketForge,
     packets_map: HashMap<(NodeId, u64), Vec<Fragment>>, // (client_id, session_id) -> fragment
-    terminated: bool,
     // Storage data structures
     clients: HashMap<NodeId, ClientInfo>,
     files: HashMap<FileHash, FileEntry>,
+    // Network graph
+    routing_handler: RoutingHandler,
+    flood_id: u64,
     // Logger
     logger: Logger,
 }
@@ -53,12 +59,14 @@ impl Server {
             controller_send: command_send,
             controller_recv: command_recv,
             packet_recv: receiver,
-            senders,
+            packet_send: senders,
             packet_forge: PacketForge::new(),
             packets_map: HashMap::new(),
             terminated: false,
             clients: HashMap::new(),
             files: HashMap::new(),
+            routing_handler: RoutingHandler::new(),
+            flood_id: 0,
             logger: Logger::new(LogLevel::None as u8, false, "Server-tracker".to_string()),
         }
     }
@@ -69,6 +77,9 @@ impl Server {
     }
 
     pub fn run(&mut self) {
+        // At start perform the first flood_request
+        self.init_flood_request();
+
         loop {
             if self.terminated {
                 break;
@@ -79,7 +90,7 @@ impl Server {
                     if let Ok(command) = command {
                         self.command_dispatcher(&command);
                     } else {
-                        self.logger.log_error(format!("Error receiving command for server {}", self.id).as_str());
+                        self.logger.log_error(format!("[SERVER-{}] Error receiving command!", self.id).as_str());
                         break;
                     }
                 },
@@ -87,7 +98,7 @@ impl Server {
                     if let Ok(packet) = packet {
                         self.packet_dispatcher(&packet);
                     } else {
-                        self.logger.log_error(format!("Error receiving message for server {}", self.id).as_str());
+                        self.logger.log_error(format!("[SERVER-{}] Error receiving message!", self.id).as_str());
                         break;
                     }
                 }
