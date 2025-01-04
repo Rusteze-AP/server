@@ -57,14 +57,6 @@ impl Server {
     }
 
     fn update_file_list(&mut self, message: UpdateFileList) {
-        self.logger.log_debug(
-            format!(
-                "[SERVER-{}] Updating file list of [Client-{}]...",
-                self.id, message.client_id
-            )
-            .as_str(),
-        );
-
         if !self.clients.contains_key(&message.client_id) {
             self.logger.log_warn(
                 format!(
@@ -75,6 +67,14 @@ impl Server {
             );
             return;
         }
+
+        self.logger.log_debug(
+            format!(
+                "[SERVER-{}] Updating file list of [Client-{}]...",
+                self.id, message.client_id
+            )
+            .as_str(),
+        );
 
         for (file_metadata, file_hash, file_status) in message.updated_files {
             if let Err(err) = Self::check_hash(file_hash, &file_metadata) {
@@ -116,6 +116,10 @@ impl Server {
     }
 
     fn send_file_list(&mut self, message: RequestFileList) {
+        self.logger.log_debug(
+            format!("[SERVER-{}] Handling RequestFileList message...", self.id).as_str(),
+        );
+
         let file_list = ResponseFileList::new(Vec::from(
             self.files
                 .iter()
@@ -123,52 +127,106 @@ impl Server {
                 .collect::<Vec<(FileMetadata, FileHash)>>(),
         ));
 
-        // Retrieve best path otherwise return
-        let Some(srh) = self.routing_handler.best_path(self.id, message.client_id) else {
-            self.logger.log_error(
-                format!(
-                    "[SERVER-{}][SEND FILE LIST] Could not retrieve path from {} to {}!",
-                    self.id, self.id, message.client_id
-                )
-                .as_str(),
-            );
+        // Retrieve best path from server to client otherwise return
+        let Some(srh) = self.get_path(self.id, message.client_id) else {
             return;
         };
 
         // Disassemble ResponseFileList into Packets
-        let Ok(packets) = self
+        let packets = match self
             .packet_forge
             .disassemble(file_list.clone(), srh.clone())
-        else {
-            self.logger.log_error(format!("[SERVER-{}] Error disassembling ResponseFileList message! (log_info to see more information)", self.id).as_str());
-            self.logger.log_info(
-                format!("[SERVER-{}] ResponseFileList: {:?}", self.id, file_list).as_str(),
-            );
+        {
+            Ok(packets) => packets,
+            Err(msg) => {
+                self.logger.log_error(format!("[SERVER-{}] Error disassembling ResponseFileList message! (log_info to see more information)", self.id).as_str());
+                self.logger.log_info(
+                    format!(
+                        "[SERVER-{}] ResponseFileList: {:?}\n Error: {}",
+                        self.id, file_list, msg
+                    )
+                    .as_str(),
+                );
+                return;
+            }
+        };
+
+        let next_hop = srh.hops[srh.hop_index];
+        self.send_packets_vec(&packets, next_hop);
+
+        self.logger.log_debug(
+            format!(
+                "[SERVER-{}] ResponseFileList procedure terminated!",
+                self.id
+            )
+            .as_str(),
+        );
+    }
+
+    fn send_peer_list(&mut self, message: RequestPeerList) {
+        self.logger.log_debug(
+            format!("[SERVER-{}] Handling RequestPeerList message...", self.id).as_str(),
+        );
+
+        // Check whether the requested hash exists or not
+        let file_hash = message.file_hash;
+        let Some(file_entry) = self.files.get(&file_hash).cloned() else {
+            self.logger.log_error(format!("[SERVER-{}] Could not find file hash [ {} ] in within files. Terminating procedure...", self.id, file_hash).as_str());
             return;
         };
 
-        // Get the sender channel for the next hop and forward
-        let next_hop = srh.hops[srh.hop_index];
-        let sender = get_sender(next_hop, &self.packet_send);
-        if sender.is_err() {
-            self.logger
-                .log_error(format!("[SERVER-{}] {}", self.id, &sender.unwrap_err()).as_str());
+        // Create the vector to send to the client
+        let peers_info: Vec<PeerInfo> = file_entry
+            .peers
+            .iter()
+            .filter_map(|peer| {
+                if let Some(srh) = self.get_path(*peer, message.client_id) {
+                    return Some(PeerInfo {
+                        client_id: *peer,
+                        path: srh.hops,
+                    });
+                }
+                None
+            })
+            .collect();
+
+        // Create response
+        let file_list = ResponsePeerList::new(file_hash, peers_info);
+
+        // Retrieve best path from server to client otherwise return
+        let Some(srh) = self.get_path(self.id, message.client_id) else {
             return;
-        }
-        let sender = sender.unwrap();
+        };
 
-        for packet in packets {
-            if let Err(err) = send_packet(&sender, &packet) {
-                self.logger.log_error(format!("[SERVER-{}] Failed to send packet fragment to [DRONE-{}] (use log_info to see more information)", self.id, next_hop).as_str());
+        // Disassemble ResponsePeerList into Packets
+        let packets = match self
+            .packet_forge
+            .disassemble(file_list.clone(), srh.clone())
+        {
+            Ok(packets) => packets,
+            Err(msg) => {
+                self.logger.log_error(format!("[SERVER-{}] Error disassembling ResponsePeerList message! (log_info to see more information)", self.id).as_str());
                 self.logger.log_info(
-                    format!("[SERVER-{}] Packet: {}\n Error: {}", self.id, packet, err).as_str(),
+                    format!(
+                        "[SERVER-{}] ResponsePeerList: {:?}\n Error: {}",
+                        self.id, file_list, msg
+                    )
+                    .as_str(),
                 );
+                return;
             }
-        }
-    }
+        };
 
-    fn send_peer_list(&self) {
-        todo!()
+        let next_hop = srh.hops[srh.hop_index];
+        self.send_packets_vec(&packets, next_hop);
+
+        self.logger.log_debug(
+            format!(
+                "[SERVER-{}] ResponseFileList procedure terminated!",
+                self.id
+            )
+            .as_str(),
+        );
     }
 
     fn unsubscribe_client(&mut self) {
@@ -187,7 +245,7 @@ impl Server {
                 self.send_file_list(msg);
             }
             MessageType::RequestPeerList(msg) => {
-                self.send_peer_list();
+                self.send_peer_list(msg);
             }
             MessageType::UnsubscribeClient(msg) => {
                 self.unsubscribe_client();

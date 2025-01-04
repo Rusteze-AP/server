@@ -6,7 +6,7 @@ mod utils;
 
 use crossbeam::channel::{select_biased, Receiver, Sender};
 use logger::{LogLevel, Logger};
-use packet_forge::{ClientType, FileHash, FileMetadata, PacketForge};
+use packet_forge::{ClientType, FileHash, FileMetadata, PacketForge, SessionIdT};
 use routing_handler::RoutingHandler;
 use std::collections::{HashMap, HashSet};
 use wg_internal::controller::{DroneCommand, DroneEvent};
@@ -34,7 +34,9 @@ pub struct Server {
     terminated: bool,
     // Handle incoming packages
     packet_forge: PacketForge,
-    packets_map: HashMap<(NodeId, u64), Vec<Fragment>>, // (client_id, session_id) -> fragment
+    packets_map: HashMap<(NodeId, SessionIdT), Vec<Fragment>>, // (client_id, session_id) -> fragment
+    // Handle outgoing packets
+    packets_history: HashMap<(u64, SessionIdT), Packet>, // (fragment_index, session_id) -> Packet
     // Storage data structures
     clients: HashMap<NodeId, ClientInfo>,
     files: HashMap<FileHash, FileEntry>,
@@ -60,9 +62,10 @@ impl Server {
             controller_recv: command_recv,
             packet_recv: receiver,
             packet_send: senders,
+            terminated: false,
             packet_forge: PacketForge::new(),
             packets_map: HashMap::new(),
-            terminated: false,
+            packets_history: HashMap::new(),
             clients: HashMap::new(),
             files: HashMap::new(),
             routing_handler: RoutingHandler::new(),
