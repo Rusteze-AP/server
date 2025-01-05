@@ -2,7 +2,7 @@ use crate::packet_send::{get_sender, send_packet};
 
 use super::{FileEntry, Server};
 
-use packet_forge::*;
+use packet_forge::{FileHash, FileMetadata};
 use std::collections::HashSet;
 use wg_internal::{
     network::{NodeId, SourceRoutingHeader},
@@ -10,7 +10,7 @@ use wg_internal::{
 };
 
 impl Server {
-    /// Add a new entry to `files` HashMap. If the file exists, add the new client to the peers otherwise create a new entry.
+    /// Add a new entry to `files` hashmap. If the file exists, add the new client to the peers otherwise create a new entry.
     pub(crate) fn add_to_files(
         &mut self,
         client_id: NodeId,
@@ -21,7 +21,7 @@ impl Server {
             .entry(file_hash)
             .and_modify(|entry| {
                 // If the file exists, add the new client to the peers
-                entry.peers.insert(client_id.clone());
+                entry.peers.insert(client_id);
             })
             .or_insert(FileEntry {
                 file_metadata: file_metadata.clone(),
@@ -29,7 +29,7 @@ impl Server {
             });
     }
 
-    /// Remove a client from the peers of a file in the `files` HashMap.
+    /// Remove a client from the peers of a file in the `files` hashmap.
     /// If the file has no more peers, remove the file entry entirely.
     pub(crate) fn remove_from_files(&mut self, client_id: NodeId, file_hash: FileHash) {
         if let Some(entry) = self.files.get_mut(&file_hash) {
@@ -68,11 +68,7 @@ impl Server {
         }
 
         self.logger.log_error(
-            format!(
-                "Could not retrieve [Client-{}] from available clients.",
-                client_id
-            )
-            .as_str(),
+            format!("Could not retrieve [Client-{client_id}] from available clients.",).as_str(),
         );
     }
 
@@ -82,11 +78,7 @@ impl Server {
             client_info.shared_files.remove(&file_hash);
         }
         self.logger.log_error(
-            format!(
-                "Could not retrieve [Client-{}] from available clients.",
-                client_id
-            )
-            .as_str(),
+            format!("Could not retrieve [Client-{client_id}] from available clients.",).as_str(),
         );
     }
 
@@ -110,18 +102,17 @@ impl Server {
 
     /// Retrieve the best path from-to and log error if the path cannot be found.
     pub(crate) fn get_path(&mut self, from: NodeId, to: NodeId) -> Option<SourceRoutingHeader> {
-        match self.routing_handler.best_path(from, to) {
-            Some(srh) => Some(srh),
-            None => {
-                self.logger.log_error(
-                    format!(
-                        "[SERVER-{}] No path found from {} to {}!",
-                        self.id, self.id, to
-                    )
-                    .as_str(),
-                );
-                None
-            }
+        if let Some(srh) = self.routing_handler.best_path(from, to) {
+            Some(srh)
+        } else {
+            self.logger.log_error(
+                format!(
+                    "[SERVER-{}] No path found from {} to {}!",
+                    self.id, self.id, to
+                )
+                .as_str(),
+            );
+            None
         }
     }
 
@@ -139,7 +130,7 @@ impl Server {
         let sender = sender.unwrap();
 
         for packet in packets {
-            if let Err(err) = send_packet(&sender, &packet) {
+            if let Err(err) = send_packet(&sender, packet) {
                 return Err(format!(
                     "[SERVER-{}] Failed to send packet to [DRONE-{}].\nPacket: {}\n Error: {}",
                     self.id, next_hop, packet, err
@@ -156,14 +147,13 @@ impl Server {
     /// If the channel of the `next_hop` is not found it logs and returns.
     pub(crate) fn send_save_packets(&mut self, packets: &[Packet], next_hop: NodeId) {
         // Save packets into history
-        if let Err(msg) = self.insert_packet_history(&packets) {
+        if let Err(msg) = self.insert_packet_history(packets) {
             self.logger.log_error(msg.as_str());
             return;
         }
 
         if let Err(msg) = self.send_packets_vec(packets, next_hop) {
             self.logger.log_error(msg.as_str());
-            return;
         }
     }
 }

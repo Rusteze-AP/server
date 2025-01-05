@@ -1,6 +1,6 @@
 use super::{ClientInfo, Server};
 
-use crate::utils::*;
+use crate::utils::check_packet_dest;
 use packet_forge::*;
 use std::collections::HashSet;
 use wg_internal::packet::{Nack, NackType, Packet, PacketType};
@@ -30,7 +30,7 @@ impl Server {
         let mut shared_files = HashSet::new();
 
         for (file_metadata, file_hash) in &message.available_files {
-            if let Err(err) = Self::check_hash(*file_hash, &file_metadata) {
+            if let Err(err) = Self::check_hash(*file_hash, file_metadata) {
                 self.logger
                     .log_error(format!("[SERVER-{}] {}", self.id, err).as_str());
                 continue;
@@ -40,7 +40,7 @@ impl Server {
             shared_files.insert(*file_hash);
 
             // Insert files data into files
-            self.add_to_files(message.client_id, *file_hash, &file_metadata);
+            self.add_to_files(message.client_id, *file_hash, file_metadata);
         }
 
         // Insert the client into the clients map
@@ -82,7 +82,7 @@ impl Server {
         );
 
         for (file_metadata, file_hash, file_status) in &message.updated_files {
-            if let Err(err) = Self::check_hash(*file_hash, &file_metadata) {
+            if let Err(err) = Self::check_hash(*file_hash, file_metadata) {
                 self.logger
                     .log_error(format!("[SERVER-{}] {}", self.id, err).as_str());
                 continue;
@@ -93,7 +93,7 @@ impl Server {
                     // Update the list of files shared by `client_id`
                     self.add_shared_file(message.client_id, *file_hash);
                     // Update the file information stored in `files`
-                    self.add_to_files(message.client_id, *file_hash, &file_metadata);
+                    self.add_to_files(message.client_id, *file_hash, file_metadata);
 
                     self.logger.log_info(
                         format!(
@@ -107,7 +107,7 @@ impl Server {
                     // Update the list of files shared by `client_id`
                     self.remove_shared_file(message.client_id, *file_hash);
                     // Remove the `file_hash` entry in `files`
-                    self.files.remove_entry(&file_hash);
+                    self.files.remove_entry(file_hash);
 
                     self.logger.log_info(
                         format!("[SERVER-{}] Removed File [ {:?} ]", self.id, file_metadata)
@@ -125,12 +125,12 @@ impl Server {
             format!("[SERVER-{}] Handling RequestFileList message...", self.id).as_str(),
         );
 
-        let file_list = ResponseFileList::new(Vec::from(
+        let file_list = ResponseFileList::new(
             self.files
                 .iter()
                 .map(|(file_hash, file_entry)| (file_entry.file_metadata.clone(), *file_hash))
                 .collect::<Vec<(FileMetadata, FileHash)>>(),
-        ));
+        );
 
         // Retrieve best path from server to client otherwise return
         let Some(srh) = self.get_path(self.id, message.client_id) else {
@@ -435,7 +435,7 @@ impl Server {
 
                 // If all fragments are received, assemble the message
                 let fragments = self.packets_map.get(&key).unwrap();
-                if fragments.len() == total_fragments as usize {
+                if fragments.len() as u64 == total_fragments {
                     let assembled = match self.packet_forge.assemble_dynamic(fragments.clone()) {
                         Ok(message) => message,
                         Err(e) => {
