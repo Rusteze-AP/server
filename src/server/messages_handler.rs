@@ -14,7 +14,7 @@ impl Server {
         if self.clients.contains_key(&message.client_id) {
             self.logger.log_warn(
                 format!(
-                    "[SERVER-{}] Received SubscribeClient message but [Client {}] already exists!",
+                    "[SERVER-{}] Received SubscribeClient message but [CLIENT {}] already exists!",
                     self.id, message.client_id
                 )
                 .as_str(),
@@ -24,7 +24,7 @@ impl Server {
 
         self.logger.log_debug(
             format!(
-                "[SERVER-{}] Handling SubscribeClient message for [Client-{}]...",
+                "[SERVER-{}] Handling SubscribeClient message for [CLIENT-{}]...",
                 self.id, message.client_id
             )
             .as_str(),
@@ -54,13 +54,21 @@ impl Server {
                 shared_files,
             },
         );
+
+        self.logger.log_info(
+            format!(
+                "[SERVER-{}] Client {} subscribed with success!",
+                self.id, message.client_id
+            )
+            .as_str(),
+        );
     }
 
     fn update_file_list(&mut self, message: UpdateFileList) {
         if !self.clients.contains_key(&message.client_id) {
             self.logger.log_warn(
                 format!(
-                    "[SERVER-{}] Received UpdateFileList for [Client-{}] but no client was found. File list: {:?}",
+                    "[SERVER-{}] Received UpdateFileList for [CLIENT-{}] but no client was found. File list: {:?}",
                     self.id, message.client_id, message.updated_files
                 )
                 .as_str(),
@@ -70,7 +78,7 @@ impl Server {
 
         self.logger.log_debug(
             format!(
-                "[SERVER-{}] Updating file list of [Client-{}]...",
+                "[SERVER-{}] Updating file list of [CLIENT-{}]...",
                 self.id, message.client_id
             )
             .as_str(),
@@ -112,7 +120,7 @@ impl Server {
             };
         }
         self.logger
-            .log_debug(format!("[SERVER-{}] File list updated!", self.id).as_str());
+            .log_info(format!("[SERVER-{}] File list updated!", self.id).as_str());
     }
 
     fn send_file_list(&mut self, message: RequestFileList) {
@@ -154,7 +162,7 @@ impl Server {
         let next_hop = srh.hops[srh.hop_index];
         self.send_packets_vec(&packets, next_hop);
 
-        self.logger.log_debug(
+        self.logger.log_info(
             format!(
                 "[SERVER-{}] ResponseFileList procedure terminated!",
                 self.id
@@ -220,7 +228,7 @@ impl Server {
         let next_hop = srh.hops[srh.hop_index];
         self.send_packets_vec(&packets, next_hop);
 
-        self.logger.log_debug(
+        self.logger.log_info(
             format!(
                 "[SERVER-{}] ResponseFileList procedure terminated!",
                 self.id
@@ -229,8 +237,53 @@ impl Server {
         );
     }
 
-    fn unsubscribe_client(&mut self) {
-        todo!()
+    fn unsubscribe_client(&mut self, message: UnsubscribeClient) {
+        // Check if client is subscribed
+        if self.clients.contains_key(&message.client_id) {
+            self.logger.log_warn(
+                format!(
+                    "[SERVER-{}] Received UnsubscribeClient message but [CLIENT {}] was not found!",
+                    self.id, message.client_id
+                )
+                .as_str(),
+            );
+            return;
+        }
+
+        self.logger.log_debug(
+            format!(
+                "[SERVER-{}] Handling UnsubscribeClient message for [CLIENT {}]...",
+                self.id, message.client_id
+            )
+            .as_str(),
+        );
+
+        // Remove Client from clients HashMap
+        let Some(client_info) = self.clients.remove(&message.client_id) else {
+            self.logger.log_error(
+                format!(
+                    "[SERVER-{}] No [CLIENT {}] found: could not remove it from clients!",
+                    self.id, message.client_id
+                )
+                .as_str(),
+            );
+            return;
+        };
+
+        for file_hash in client_info.shared_files {
+            self.logger.log_info(
+                format!("[SERVER-{}] Removing file: [ {} ]", self.id, file_hash).as_str(),
+            );
+            self.remove_from_files(message.client_id, file_hash);
+        }
+
+        self.logger.log_info(
+            format!(
+                "[SERVER-{}] Client {} unsubscribed with success!",
+                self.id, message.client_id
+            )
+            .as_str(),
+        );
     }
 
     pub(crate) fn handle_message(&mut self, message: MessageType) {
@@ -248,7 +301,7 @@ impl Server {
                 self.send_peer_list(msg);
             }
             MessageType::UnsubscribeClient(msg) => {
-                self.unsubscribe_client();
+                self.unsubscribe_client(msg);
             }
             _ => {
                 self.logger.log_error(

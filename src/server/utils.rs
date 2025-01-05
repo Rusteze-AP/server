@@ -29,6 +29,20 @@ impl Server {
             });
     }
 
+    /// Remove a client from the peers of a file in the `files` HashMap.
+    /// If the file has no more peers, remove the file entry entirely.
+    pub(crate) fn remove_from_files(&mut self, client_id: NodeId, file_hash: FileHash) {
+        if let Some(entry) = self.files.get_mut(&file_hash) {
+            // Remove the client from the peers
+            entry.peers.remove(&client_id);
+
+            // If there are no more peers, remove the file entry
+            if entry.peers.is_empty() {
+                self.files.remove(&file_hash);
+            }
+        }
+    }
+
     /// Check if the received `file_hash` is correct.
     /// ### Error
     /// Log the two mismatched hash
