@@ -312,6 +312,28 @@ impl Server {
         }
     }
 
+    fn handle_ack(&mut self, fragment_index: u64, session_id: SessionIdT) {
+        let Some(entry) = self.packets_history.remove(&(fragment_index, session_id)) else {
+            self.logger.log_error(
+                format!(
+                    "[SERVER-{}] Failed to remove [ ({}, {}) ] key from packet history",
+                    self.id, fragment_index, session_id
+                )
+                .as_str(),
+            );
+            return;
+        };
+        self.logger.log_info(
+            format!(
+                "[SERVER-{}] Packet history updated, removed: {:?}",
+                self.id, entry
+            )
+            .as_str(),
+        );
+    }
+
+    
+        
     pub(crate) fn packet_dispatcher(&mut self, packet: &Packet) {
         let client_id = packet.routing_header.hops[0];
         let key = (client_id, packet.session_id);
@@ -372,12 +394,20 @@ impl Server {
                     )
                     .as_str(),
                 );
-                self.logger.log_info(format!("[SERVER-{}] FloodRequest: {}", self.id, flood_req).as_str());
+                self.logger
+                    .log_info(format!("[SERVER-{}] FloodRequest: {}", self.id, flood_req).as_str());
                 self.handle_flood_request(flood_req);
             }
             PacketType::Ack(ack) => {
                 // Pop the corresponding fragment from packet_history
-                todo!()
+                self.logger.log_debug(
+                    format!(
+                        "[SERVER-{}] Received {} for session id [ {} ]",
+                        self.id, ack, packet.session_id
+                    )
+                    .as_str(),
+                );
+                self.handle_ack(packet.session_id, ack.fragment_index);
             }
             PacketType::Nack(nack) => {
                 // Handle different nacks
