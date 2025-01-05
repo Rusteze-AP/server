@@ -1,15 +1,12 @@
 use super::{ClientInfo, Server};
 
-use crate::{
-    packet_send::{get_sender, send_packet},
-    utils::*,
-};
+use crate::utils::*;
 use packet_forge::*;
 use std::collections::HashSet;
 use wg_internal::packet::{Packet, PacketType};
 
 impl Server {
-    fn subscribe_client(&mut self, message: SubscribeClient) {
+    fn subscribe_client(&mut self, message: &SubscribeClient) {
         // Check if client is already subscribed
         if self.clients.contains_key(&message.client_id) {
             self.logger.log_warn(
@@ -32,25 +29,25 @@ impl Server {
         // Files shared by the client
         let mut shared_files = HashSet::new();
 
-        for (file_metadata, file_hash) in message.available_files {
-            if let Err(err) = Self::check_hash(file_hash, &file_metadata) {
+        for (file_metadata, file_hash) in &message.available_files {
+            if let Err(err) = Self::check_hash(*file_hash, &file_metadata) {
                 self.logger
                     .log_error(format!("[SERVER-{}] {}", self.id, err).as_str());
                 continue;
             }
 
             // Collect file_hash into shared_files
-            shared_files.insert(file_hash);
+            shared_files.insert(*file_hash);
 
             // Insert files data into files
-            self.add_to_files(message.client_id, file_hash, &file_metadata);
+            self.add_to_files(message.client_id, *file_hash, &file_metadata);
         }
 
         // Insert the client into the clients map
         self.clients.insert(
             message.client_id,
             ClientInfo {
-                client_type: message.client_type,
+                client_type: message.client_type.clone(),
                 shared_files,
             },
         );
@@ -64,7 +61,7 @@ impl Server {
         );
     }
 
-    fn update_file_list(&mut self, message: UpdateFileList) {
+    fn update_file_list(&mut self, message: &UpdateFileList) {
         if !self.clients.contains_key(&message.client_id) {
             self.logger.log_warn(
                 format!(
@@ -84,8 +81,8 @@ impl Server {
             .as_str(),
         );
 
-        for (file_metadata, file_hash, file_status) in message.updated_files {
-            if let Err(err) = Self::check_hash(file_hash, &file_metadata) {
+        for (file_metadata, file_hash, file_status) in &message.updated_files {
+            if let Err(err) = Self::check_hash(*file_hash, &file_metadata) {
                 self.logger
                     .log_error(format!("[SERVER-{}] {}", self.id, err).as_str());
                 continue;
@@ -94,9 +91,9 @@ impl Server {
             match file_status {
                 FileStatus::New => {
                     // Update the list of files shared by `client_id`
-                    self.add_shared_file(message.client_id, file_hash);
+                    self.add_shared_file(message.client_id, *file_hash);
                     // Update the file information stored in `files`
-                    self.add_to_files(message.client_id, file_hash, &file_metadata);
+                    self.add_to_files(message.client_id, *file_hash, &file_metadata);
 
                     self.logger.log_info(
                         format!(
@@ -108,7 +105,7 @@ impl Server {
                 }
                 FileStatus::Deleted => {
                     // Update the list of files shared by `client_id`
-                    self.remove_shared_file(message.client_id, file_hash);
+                    self.remove_shared_file(message.client_id, *file_hash);
                     // Remove the `file_hash` entry in `files`
                     self.files.remove_entry(&file_hash);
 
@@ -123,7 +120,7 @@ impl Server {
             .log_info(format!("[SERVER-{}] File list updated!", self.id).as_str());
     }
 
-    fn send_file_list(&mut self, message: RequestFileList) {
+    fn send_file_list(&mut self, message: &RequestFileList) {
         self.logger.log_debug(
             format!("[SERVER-{}] Handling RequestFileList message...", self.id).as_str(),
         );
@@ -171,7 +168,7 @@ impl Server {
         );
     }
 
-    fn send_peer_list(&mut self, message: RequestPeerList) {
+    fn send_peer_list(&mut self, message: &RequestPeerList) {
         self.logger.log_debug(
             format!("[SERVER-{}] Handling RequestPeerList message...", self.id).as_str(),
         );
@@ -237,7 +234,7 @@ impl Server {
         );
     }
 
-    fn unsubscribe_client(&mut self, message: UnsubscribeClient) {
+    fn unsubscribe_client(&mut self, message: &UnsubscribeClient) {
         // Check if client is subscribed
         if self.clients.contains_key(&message.client_id) {
             self.logger.log_warn(
@@ -286,7 +283,7 @@ impl Server {
         );
     }
 
-    pub(crate) fn handle_message(&mut self, message: MessageType) {
+    fn handle_message(&mut self, message: &MessageType) {
         match message {
             MessageType::SubscribeClient(msg) => {
                 self.subscribe_client(msg);
@@ -318,42 +315,73 @@ impl Server {
     pub(crate) fn packet_dispatcher(&mut self, packet: &Packet) {
         let client_id = packet.routing_header.hops[0];
         let key = (client_id, packet.session_id);
+
+        // Check if the packet is for this server
+        if !check_packet_dest(&packet.routing_header, self.id, &self.logger) {
+            self.logger
+                .log_info(format!("[SERVER-{}] Packet: {:?}", self.id, packet).as_str());
+            return;
+        }
+
         match &packet.pack_type {
             PacketType::MsgFragment(frag) => {
-                // Check if the packet is for this server
-                if check_packet_dest(&packet.routing_header, self.id) {
-                    // Save fragment
-                    let total_fragments = frag.total_n_fragments;
-                    self.packets_map.entry(key).or_default().push(frag.clone());
+                self.logger
+                    .log_debug(format!("[SERVER-{}] Received {} ", self.id, frag).as_str());
 
-                    // If all fragments are received, assemble the message
-                    let fragments = self.packets_map.get(&key).unwrap();
-                    if fragments.len() == total_fragments as usize {
-                        let assembled = match self.packet_forge.assemble_dynamic(fragments.clone())
-                        {
-                            Ok(message) => message,
-                            Err(e) => panic!("[SERVER-{}] Error: {}", self.id, e),
-                        };
+                // Save fragment
+                let total_fragments = frag.total_n_fragments;
+                self.packets_map.entry(key).or_default().push(frag.clone());
 
-                        self.handle_message(assembled);
-                    }
-                    return;
+                // If all fragments are received, assemble the message
+                let fragments = self.packets_map.get(&key).unwrap();
+                if fragments.len() == total_fragments as usize {
+                    let assembled = match self.packet_forge.assemble_dynamic(fragments.clone()) {
+                        Ok(message) => message,
+                        Err(e) => {
+                            self.logger.log_error(
+                                format!(
+                                    "[SERVER-{}] An error occurred when assembling fragments: {}",
+                                    self.id, e
+                                )
+                                .as_str(),
+                            );
+                            return;
+                        }
+                    };
+
+                    self.handle_message(&assembled);
                 }
-
-                self.logger.log_warn(
+            }
+            PacketType::FloodResponse(flood_res) => {
+                // Update graph with flood response
+                self.logger.log_debug(
                     format!(
-                        "[SERVER-{}] Received a fragment with destination: {:?}",
-                        self.id,
-                        packet.routing_header.hops.last()
+                        "[SERVER-{}] Received FloodResponse with path_trace [ {:?} ]. Updating graph!",
+                        self.id, flood_res.path_trace
                     )
                     .as_str(),
                 );
+                self.routing_handler.update_graph(flood_res.clone());
             }
-            PacketType::FloodResponse(flood_res) => {
+            PacketType::FloodRequest(flood_req) => {
+                // Build flood response
+                self.logger.log_debug(
+                    format!(
+                        "[SERVER-{}] Received FloodRequest building FloodResponse!",
+                        self.id
+                    )
+                    .as_str(),
+                );
+                self.logger.log_info(format!("[SERVER-{}] FloodRequest: {}", self.id, flood_req).as_str());
+                self.handle_flood_request(flood_req);
+            }
+            PacketType::Ack(ack) => {
+                // Pop the corresponding fragment from packet_history
                 todo!()
             }
-            _ => {
-                println!("[SERVER-{}] Received a packet: {:?}", self.id, packet);
+            PacketType::Nack(nack) => {
+                // Handle different nacks
+                todo!()
             }
         }
     }

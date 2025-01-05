@@ -1,9 +1,10 @@
 use super::Server;
 
-use wg_internal::network::SourceRoutingHeader;
+use wg_internal::controller::DroneEvent;
+use wg_internal::network::{SourceRoutingHeader, NodeId};
 use wg_internal::packet::{FloodRequest, Packet};
 
-use crate::packet_send::send_packet;
+use crate::packet_send::*;
 
 impl Server {
     pub(crate) fn get_flood_id(&mut self) -> u64 {
@@ -28,6 +29,67 @@ impl Server {
                     .as_str(),
                 );
             }
+        }
+    }
+
+    fn build_flood_response(flood_req: &FloodRequest) -> (NodeId, Packet) {
+        let mut packet = flood_req.generate_response(1); // Note: returns with hop_index = 0;
+        packet.routing_header.increase_hop_index();
+        let dest = packet.routing_header.current_hop();
+
+        if dest.is_none() {
+            return (0, packet);
+        }
+
+        (dest.unwrap(), packet)
+    }
+
+    fn send_flood_response(&self, sender: NodeId, packet: &Packet) -> Result<(), String> {
+        let sender = get_sender(sender, &self.packet_send);
+
+        if let Err(err) = sender {
+            return Err(format!(
+                "[SERVER-{}][FLOOD RESPONSE] - Error occurred while sending flood response: {}",
+                self.id, err
+            ));
+        }
+
+        let sender = sender.unwrap();
+        if let Err(err) = send_packet(&sender, packet) {
+            self.logger.log_warn(format!("[SERVER-{}][FLOOD RESPONSE] - Failed to forward packet to [DRONE-{}]. \n Error: {} \n Trying to use SC shortcut...", self.id, packet.routing_header.current_hop().unwrap(), err).as_str());
+            // Send to SC
+            let res = sc_send_packet(
+                &self.controller_send,
+                &DroneEvent::ControllerShortcut(packet.clone()),
+            );
+
+            if let Err(err) = res {
+                self.logger
+                    .log_error(format!("[SERVER-{}][FLOOD RESPONSE] - {}", self.id, err).as_str());
+                return Err(format!(
+                    "[SERVER-{}][FLOOD RESPONSE] - Unable to forward packet to neither next hop nor SC. \n Packet: {}",
+                    self.id, packet
+                ));
+            }
+
+            self.logger.log_debug(
+                format!(
+                    "[SERVER-{}][FLOOD RESPONSE] - Successfully sent flood response through SC. Packet: {}",
+                    self.id, packet
+                )
+                .as_str(),
+            );
+        }
+        Ok(())
+    }
+
+    pub(crate) fn handle_flood_request(&self, message: &FloodRequest) {
+        let (dest, packet) = Self::build_flood_response(message);
+
+        let res = self.send_flood_response(dest, &packet);
+
+        if let Err(msg) = res {
+            self.logger.log_error(msg.as_str());
         }
     }
 }
