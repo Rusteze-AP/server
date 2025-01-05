@@ -8,6 +8,6 @@ crossbeam = "0.8.4"
 wg_internal = { git = "https://github.com/WGL-2024/WGL_repo_2024.git", features = [
     "debug",
 ] }
-packet_forge = { git = "https://github.com/Rusteze-AP/packet-forge.git"}
-logger = { git = "https://github.com/Rusteze-AP/logger.git"}
-routing-handler = { git = "https://github.com/Rusteze-AP/routing-handler.git" }
+packet_forge = { git = "ssh://git@github.com/Rusteze-AP/packet-forge.git"}
+logger = { git = "ssh://git@github.com/Rusteze-AP/logger.git"}
+routing-handler = { git = "ssh://git@github.com/Rusteze-AP/routing-handler.git" }
