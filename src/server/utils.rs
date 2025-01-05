@@ -93,7 +93,7 @@ impl Server {
     /// Insert a vector of pakets inside the packets sent history
     /// ### Error
     /// If a packet inside the vector does not contain a Fragment it returns an Err(String)
-    pub(crate) fn insert_packet_history(&mut self, packets: &Vec<Packet>) -> Result<(), String> {
+    pub(crate) fn insert_packet_history(&mut self, packets: &[Packet]) -> Result<(), String> {
         for p in packets {
             let PacketType::MsgFragment(fragment) = &p.pack_type else {
                 return Err(format!(
@@ -125,34 +125,45 @@ impl Server {
         }
     }
 
+    /// This function takes a vector of packets and sends them to the `next_hop`
+    pub(crate) fn send_packets_vec(
+        &mut self,
+        packets: &[Packet],
+        next_hop: NodeId,
+    ) -> Result<(), String> {
+        // Get the sender channel for the next hop and forward
+        let sender = get_sender(next_hop, &self.packet_send);
+        if sender.is_err() {
+            return Err(format!("[SERVER-{}] {}", self.id, &sender.unwrap_err()));
+        }
+        let sender = sender.unwrap();
+
+        for packet in packets {
+            if let Err(err) = send_packet(&sender, &packet) {
+                return Err(format!(
+                    "[SERVER-{}] Failed to send packet to [DRONE-{}].\nPacket: {}\n Error: {}",
+                    self.id, next_hop, packet, err
+                ));
+            }
+        }
+        Ok(())
+    }
+
     /// This function has two purposes:
     /// - send the fragments contained within each Packet to their destination
     /// - save each packet into `packet_history`
     /// ### Error
     /// If the channel of the `next_hop` is not found it logs and returns.
-    pub(crate) fn send_packets_vec(&mut self, packets: &Vec<Packet>, next_hop: NodeId) {
+    pub(crate) fn send_save_packets(&mut self, packets: &[Packet], next_hop: NodeId) {
         // Save packets into history
         if let Err(msg) = self.insert_packet_history(&packets) {
             self.logger.log_error(msg.as_str());
             return;
         }
 
-        // Get the sender channel for the next hop and forward
-        let sender = get_sender(next_hop, &self.packet_send);
-        if sender.is_err() {
-            self.logger
-                .log_error(format!("[SERVER-{}] {}", self.id, &sender.unwrap_err()).as_str());
+        if let Err(msg) = self.send_packets_vec(packets, next_hop) {
+            self.logger.log_error(msg.as_str());
             return;
-        }
-        let sender = sender.unwrap();
-
-        for packet in packets {
-            if let Err(err) = send_packet(&sender, &packet) {
-                self.logger.log_error(format!("[SERVER-{}] Failed to send packet fragment to [DRONE-{}] (use log_info to see more information)", self.id, next_hop).as_str());
-                self.logger.log_info(
-                    format!("[SERVER-{}] Packet: {}\n Error: {}", self.id, packet, err).as_str(),
-                );
-            }
         }
     }
 }

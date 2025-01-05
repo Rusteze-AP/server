@@ -3,7 +3,7 @@ use super::{ClientInfo, Server};
 use crate::utils::*;
 use packet_forge::*;
 use std::collections::HashSet;
-use wg_internal::packet::{Packet, PacketType};
+use wg_internal::packet::{Nack, NackType, Packet, PacketType};
 
 impl Server {
     fn subscribe_client(&mut self, message: &SubscribeClient) {
@@ -157,7 +157,7 @@ impl Server {
         };
 
         let next_hop = srh.hops[srh.hop_index];
-        self.send_packets_vec(&packets, next_hop);
+        self.send_save_packets(&packets, next_hop);
 
         self.logger.log_info(
             format!(
@@ -223,11 +223,11 @@ impl Server {
         };
 
         let next_hop = srh.hops[srh.hop_index];
-        self.send_packets_vec(&packets, next_hop);
+        self.send_save_packets(&packets, next_hop);
 
         self.logger.log_info(
             format!(
-                "[SERVER-{}] ResponseFileList procedure terminated!",
+                "[SERVER-{}] ResponsePeerList procedure terminated!",
                 self.id
             )
             .as_str(),
@@ -283,7 +283,7 @@ impl Server {
         );
     }
 
-    fn handle_message(&mut self, message: &MessageType) {
+    fn message_handler(&mut self, message: &MessageType) {
         match message {
             MessageType::SubscribeClient(msg) => {
                 self.subscribe_client(msg);
@@ -312,7 +312,7 @@ impl Server {
         }
     }
 
-    fn handle_ack(&mut self, fragment_index: u64, session_id: SessionIdT) {
+    fn ack_handler(&mut self, fragment_index: u64, session_id: SessionIdT) {
         let Some(entry) = self.packets_history.remove(&(fragment_index, session_id)) else {
             self.logger.log_error(
                 format!(
@@ -332,8 +332,87 @@ impl Server {
         );
     }
 
-    
-        
+    /// This function retransmit the packet for which the server received the Nack and tries to calculate a new optimal path.
+    fn retransmit_packet(
+        &mut self,
+        packet: &mut Packet,
+        fragment_index: u64,
+        session_id: SessionIdT,
+    ) {
+        let dest = packet.routing_header.hops[packet.routing_header.hops.len()];
+
+        // Retrieve new best path from server to client otherwise return
+        let Some(srh) = self.get_path(self.id, dest) else {
+            return;
+        };
+
+        let next_hop = srh.hops[srh.hop_index];
+        // Assign the new SourceRoutingHeader
+        packet.routing_header = srh;
+
+        if let Err(msg) = self.send_packets_vec(&[packet.clone()], next_hop) {
+            self.logger.log_error(msg.as_str());
+            return;
+        }
+
+        self.logger.log_info(
+            format!(
+                "[SERVER-{}] Successfully re-sent packet [ ({}, {}) ]",
+                self.id, fragment_index, session_id
+            )
+            .as_str(),
+        );
+    }
+
+    fn nack_handler(&mut self, message: &Nack, session_id: SessionIdT) {
+        // Retrieve the packet that generated the nack
+        let Some(mut packet) = self
+            .packets_history
+            .get(&(message.fragment_index, session_id))
+            .cloned()
+        else {
+            self.logger.log_error(format!("[SERVER-{}] Failed to retrieve packet with [ ({}, {}) ] key from packet history", self.id, message.fragment_index, session_id).as_str());
+            return;
+        };
+
+        match message.nack_type {
+            NackType::Dropped => {
+                self.retransmit_packet(&mut packet, message.fragment_index, session_id);
+            }
+            NackType::DestinationIsDrone => {
+                self.logger.log_warn(
+                    format!(
+                        "[SERVER-{}] Received DestinationIsDrone for {:?} ",
+                        self.id, packet
+                    )
+                    .as_str(),
+                );
+            }
+            NackType::ErrorInRouting(node) => {
+                self.logger.log_warn(
+                    format!(
+                        "[SERVER-{}] Received ErrorInRouting at [NODE-{}] for {}",
+                        self.id, node, packet
+                    )
+                    .as_str(),
+                );
+                // Start new flooding
+                self.init_flood_request();
+                // Retransmit packet
+                self.retransmit_packet(&mut packet, message.fragment_index, session_id);
+            }
+            NackType::UnexpectedRecipient(node) => {
+                self.logger.log_warn(
+                    format!(
+                        "[SERVER-{}] Received UnexpectedRecipient at [NODE-{}] for {}",
+                        self.id, node, packet
+                    )
+                    .as_str(),
+                );
+            }
+        }
+    }
+
     pub(crate) fn packet_dispatcher(&mut self, packet: &Packet) {
         let client_id = packet.routing_header.hops[0];
         let key = (client_id, packet.session_id);
@@ -345,11 +424,11 @@ impl Server {
             return;
         }
 
+        self.logger
+            .log_info(format!("[SERVER-{}] Received: {:?}", self.id, packet).as_str());
+
         match &packet.pack_type {
             PacketType::MsgFragment(frag) => {
-                self.logger
-                    .log_debug(format!("[SERVER-{}] Received {} ", self.id, frag).as_str());
-
                 // Save fragment
                 let total_fragments = frag.total_n_fragments;
                 self.packets_map.entry(key).or_default().push(frag.clone());
@@ -371,47 +450,24 @@ impl Server {
                         }
                     };
 
-                    self.handle_message(&assembled);
+                    self.message_handler(&assembled);
                 }
             }
             PacketType::FloodResponse(flood_res) => {
                 // Update graph with flood response
-                self.logger.log_debug(
-                    format!(
-                        "[SERVER-{}] Received FloodResponse with path_trace [ {:?} ]. Updating graph!",
-                        self.id, flood_res.path_trace
-                    )
-                    .as_str(),
-                );
                 self.routing_handler.update_graph(flood_res.clone());
             }
             PacketType::FloodRequest(flood_req) => {
                 // Build flood response
-                self.logger.log_debug(
-                    format!(
-                        "[SERVER-{}] Received FloodRequest building FloodResponse!",
-                        self.id
-                    )
-                    .as_str(),
-                );
-                self.logger
-                    .log_info(format!("[SERVER-{}] FloodRequest: {}", self.id, flood_req).as_str());
                 self.handle_flood_request(flood_req);
             }
             PacketType::Ack(ack) => {
                 // Pop the corresponding fragment from packet_history
-                self.logger.log_debug(
-                    format!(
-                        "[SERVER-{}] Received {} for session id [ {} ]",
-                        self.id, ack, packet.session_id
-                    )
-                    .as_str(),
-                );
-                self.handle_ack(packet.session_id, ack.fragment_index);
+                self.ack_handler(packet.session_id, ack.fragment_index);
             }
             PacketType::Nack(nack) => {
                 // Handle different nacks
-                todo!()
+                self.nack_handler(nack, packet.session_id);
             }
         }
     }
