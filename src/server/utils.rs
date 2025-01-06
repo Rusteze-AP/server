@@ -1,10 +1,14 @@
-use crate::packet_send::{get_sender, send_packet};
+use crate::{
+    packet_send::{get_sender, sc_send_packet, send_packet},
+    utils::get_packet_type,
+};
 
 use super::{FileEntry, Server};
 
 use packet_forge::{FileHash, FileMetadata};
 use std::collections::HashSet;
 use wg_internal::{
+    controller::DroneEvent,
     network::{NodeId, SourceRoutingHeader},
     packet::{Packet, PacketType},
 };
@@ -116,7 +120,28 @@ impl Server {
         }
     }
 
-    /// This function takes a vector of packets and sends them to the `next_hop`
+    /// Sends a `DroneEvent` containing the `packet` that has been sent.
+    pub(crate) fn event_dispatcher(&self, packet: &Packet, packet_str: &str) {
+        if let Err(err) = sc_send_packet(
+            &self.controller_send,
+            &DroneEvent::PacketSent(packet.clone()),
+        ) {
+            self.logger.log_error(&format!(
+                "[SERVER-{}][{}] - Packet event forward: {}",
+                self.id,
+                packet_str.to_ascii_uppercase(),
+                err
+            ));
+            return;
+        }
+        self.logger.log_debug(&format!(
+            "[SERVER-{}][{}] - Packet event sent successfully",
+            self.id,
+            packet_str.to_ascii_uppercase()
+        ));
+    }
+
+    /// Takes a vector of packets and sends them to the `next_hop`
     pub(crate) fn send_packets_vec(
         &mut self,
         packets: &[Packet],
@@ -130,14 +155,60 @@ impl Server {
         let sender = sender.unwrap();
 
         for packet in packets {
+            let packet_str = get_packet_type(&packet.pack_type);
             if let Err(err) = send_packet(&sender, packet) {
                 return Err(format!(
                     "[SERVER-{}] Failed to send packet to [DRONE-{}].\nPacket: {}\n Error: {}",
                     self.id, next_hop, packet, err
                 ));
             }
+            self.event_dispatcher(packet, &packet_str);
         }
         Ok(())
+    }
+
+    /// Builds and sends an `Ack` to the `next_hop`. If it fails it tries to use the Simulation Controller
+    pub(crate) fn send_ack(&mut self, packet: &Packet, fragment_index: u64) {
+        let source_routing_header = packet.routing_header.get_reversed();
+        if source_routing_header.hop_index != 1 {
+            self.logger.log_error(format!(
+                    "[SERVER-{}] - Unable to reverse source routing header. \n Hops: {} \n Hop index: {}",
+                    self.id, packet.routing_header, packet.routing_header.hop_index
+                ).as_str());
+            return;
+        }
+        let next_hop = source_routing_header.hops[1];
+        let ack = Packet::new_ack(source_routing_header, packet.session_id, fragment_index);
+
+        if let Err(msg) = self.send_packets_vec(&[ack], next_hop) {
+            self.logger.log_error(&msg);
+            self.logger.log_debug(&format!(
+                "[SERVER-{}][ACK] Trying to use SC shortcut...",
+                self.id
+            ));
+
+            // Send to SC
+            if let Err(msg) = sc_send_packet(
+                &self.controller_send,
+                &DroneEvent::ControllerShortcut(packet.clone()),
+            ) {
+                self.logger
+                    .log_error(&format!("[SERVER-{}][ACK] - {}", self.id, msg));
+                self.logger.log_error(&format!(
+                    "[SERVER-{}][ACK] - Unable to forward packet to neither next hop nor SC. \n Packet: {}",
+                    self.id, packet
+                ));
+                return;
+            }
+
+            self.logger.log_debug(
+                format!(
+                    "[SERVER-{}][ACK] - Successfully sent flood response through SC. Packet: {}",
+                    self.id, packet
+                )
+                .as_str(),
+            );
+        }
     }
 
     /// This function has two purposes:

@@ -5,6 +5,7 @@ use wg_internal::network::{NodeId, SourceRoutingHeader};
 use wg_internal::packet::{FloodRequest, Packet};
 
 use crate::packet_send::{get_sender, sc_send_packet, send_packet};
+use crate::utils::get_packet_type;
 
 impl Server {
     pub(crate) fn get_flood_id(&mut self) -> u64 {
@@ -21,14 +22,13 @@ impl Server {
                 flood_req.clone(),
             );
             if let Err(err) = send_packet(sender, &packet) {
-                self.logger.log_error(
-                    format!(
-                        "[SERVER-{}][FLOODING] Sending to [DRONE-{}]: {}",
-                        self.id, id, err
-                    )
-                    .as_str(),
-                );
+                self.logger.log_error(&format!(
+                    "[SERVER-{}][FLOODING] Sending to [DRONE-{}]: {}",
+                    self.id, id, err
+                ));
             }
+            let packet_str = get_packet_type(&packet.pack_type);
+            self.event_dispatcher(&packet, &packet_str);
         }
     }
 
@@ -56,7 +56,7 @@ impl Server {
 
         let sender = sender.unwrap();
         if let Err(err) = send_packet(&sender, packet) {
-            self.logger.log_warn(format!("[SERVER-{}][FLOOD RESPONSE] - Failed to forward packet to [DRONE-{}]. \n Error: {} \n Trying to use SC shortcut...", self.id, packet.routing_header.current_hop().unwrap(), err).as_str());
+            self.logger.log_warn(&format!("[SERVER-{}][FLOOD RESPONSE] - Failed to forward packet to [DRONE-{}]. \n Error: {} \n Trying to use SC shortcut...", self.id, packet.routing_header.current_hop().unwrap(), err));
             // Send to SC
             let res = sc_send_packet(
                 &self.controller_send,
@@ -65,20 +65,14 @@ impl Server {
 
             if let Err(err) = res {
                 self.logger
-                    .log_error(format!("[SERVER-{}][FLOOD RESPONSE] - {}", self.id, err).as_str());
+                    .log_error(&format!("[SERVER-{}][FLOOD RESPONSE] - {}", self.id, err));
                 return Err(format!(
                     "[SERVER-{}][FLOOD RESPONSE] - Unable to forward packet to neither next hop nor SC. \n Packet: {}",
                     self.id, packet
                 ));
             }
 
-            self.logger.log_debug(
-                format!(
-                    "[SERVER-{}][FLOOD RESPONSE] - Successfully sent flood response through SC. Packet: {}",
-                    self.id, packet
-                )
-                .as_str(),
-            );
+            self.logger.log_debug(&format!("[SERVER-{}][FLOOD RESPONSE] - Successfully sent flood response through SC. Packet: {}", self.id, packet));
         }
         Ok(())
     }

@@ -7,7 +7,7 @@ impl Server {
         match command {
             DroneCommand::Crash => {
                 self.logger
-                    .log_debug(format!("Server {} received a crash command", self.id).as_str());
+                    .log_debug(&format!("Server {} received a crash command", self.id));
                 self.terminated = true;
             }
             _ => {
