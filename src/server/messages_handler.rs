@@ -414,9 +414,6 @@ impl Server {
     }
 
     pub(crate) fn packet_dispatcher(&mut self, packet: &Packet) {
-        let client_id = packet.routing_header.hops[0];
-        let key = (client_id, packet.session_id);
-
         // Check if the packet is for this server
         if !check_packet_dest(&packet.routing_header, self.id, &self.logger) {
             self.logger
@@ -429,6 +426,9 @@ impl Server {
 
         match &packet.pack_type {
             PacketType::MsgFragment(frag) => {
+                let client_id = packet.routing_header.hops[0];
+                let key = (client_id, packet.session_id);
+                
                 // Save fragment
                 let total_fragments = frag.total_n_fragments;
                 self.packets_map.entry(key).or_default().push(frag.clone());
