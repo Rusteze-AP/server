@@ -428,7 +428,7 @@ impl Server {
             PacketType::MsgFragment(frag) => {
                 let client_id = packet.routing_header.hops[0];
                 let key = (client_id, packet.session_id);
-                
+
                 // Save fragment
                 let total_fragments = frag.total_n_fragments;
                 self.packets_map.entry(key).or_default().push(frag.clone());

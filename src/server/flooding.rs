@@ -1,8 +1,10 @@
+use std::vec;
+
 use super::Server;
 
 use wg_internal::controller::DroneEvent;
 use wg_internal::network::{NodeId, SourceRoutingHeader};
-use wg_internal::packet::{FloodRequest, Packet};
+use wg_internal::packet::{FloodRequest, NodeType, Packet};
 
 use crate::packet_send::{get_sender, sc_send_packet, send_packet};
 use crate::utils::get_packet_type;
@@ -14,7 +16,11 @@ impl Server {
     }
 
     pub(crate) fn init_flood_request(&mut self) {
-        let flood_req = FloodRequest::new(self.get_flood_id(), self.id);
+        let flood_req = FloodRequest {
+            flood_id: self.get_flood_id(),
+            initiator_id: self.id,
+            path_trace: vec![(self.id, NodeType::Server)],
+        };
         for (id, sender) in &self.packet_send {
             let packet = Packet::new_flood_request(
                 SourceRoutingHeader::new(vec![], 0),
