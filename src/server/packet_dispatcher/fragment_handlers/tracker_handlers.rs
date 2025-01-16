@@ -1,12 +1,12 @@
-use super::{ClientInfo, Server};
+use crate::ClientInfo;
 
-use crate::utils::check_packet_dest;
+use super::Server;
+
 use packet_forge::*;
 use std::collections::HashSet;
-use wg_internal::packet::{Nack, NackType, Packet, PacketType};
 
 impl Server {
-    fn subscribe_client(&mut self, message: &SubscribeClient) {
+    pub(crate) fn subscribe_client(&mut self, message: &SubscribeClient) {
         // Check if client is already subscribed
         if self.clients.contains_key(&message.client_id) {
             self.logger.log_warn(
@@ -61,7 +61,7 @@ impl Server {
         );
     }
 
-    fn update_file_list(&mut self, message: &UpdateFileList) {
+    pub(crate) fn update_file_list(&mut self, message: &UpdateFileList) {
         if !self.clients.contains_key(&message.client_id) {
             self.logger.log_warn(
                 format!(
@@ -120,7 +120,7 @@ impl Server {
             .log_info(format!("[SERVER-{}] File list updated!", self.id).as_str());
     }
 
-    fn send_file_list(&mut self, message: &RequestFileList) {
+    pub(crate) fn send_file_list(&mut self, message: &RequestFileList) {
         self.logger.log_debug(
             format!("[SERVER-{}] Handling RequestFileList message...", self.id).as_str(),
         );
@@ -168,7 +168,7 @@ impl Server {
         );
     }
 
-    fn send_peer_list(&mut self, message: &RequestPeerList) {
+    pub(crate) fn send_peer_list(&mut self, message: &RequestPeerList) {
         self.logger.log_debug(
             format!("[SERVER-{}] Handling RequestPeerList message...", self.id).as_str(),
         );
@@ -234,7 +234,7 @@ impl Server {
         );
     }
 
-    fn unsubscribe_client(&mut self, message: &UnsubscribeClient) {
+    pub(crate) fn unsubscribe_client(&mut self, message: &UnsubscribeClient) {
         // Check if client is subscribed
         if self.clients.contains_key(&message.client_id) {
             self.logger.log_warn(
@@ -281,197 +281,5 @@ impl Server {
             )
             .as_str(),
         );
-    }
-
-    fn message_handler(&mut self, message: &MessageType) {
-        match message {
-            MessageType::SubscribeClient(msg) => {
-                self.subscribe_client(msg);
-            }
-            MessageType::UpdateFileList(msg) => {
-                self.update_file_list(msg);
-            }
-            MessageType::RequestFileList(msg) => {
-                self.send_file_list(msg);
-            }
-            MessageType::RequestPeerList(msg) => {
-                self.send_peer_list(msg);
-            }
-            MessageType::UnsubscribeClient(msg) => {
-                self.unsubscribe_client(msg);
-            }
-            _ => {
-                self.logger.log_error(
-                    format!(
-                        "[SERVER-{}] Unexpected message type received: {:#?}",
-                        self.id, message
-                    )
-                    .as_str(),
-                );
-            }
-        }
-    }
-
-    fn ack_handler(&mut self, fragment_index: u64, session_id: SessionIdT) {
-        let Some(entry) = self.packets_history.remove(&(fragment_index, session_id)) else {
-            self.logger.log_error(
-                format!(
-                    "[SERVER-{}] Failed to remove [ ({}, {}) ] key from packet history",
-                    self.id, fragment_index, session_id
-                )
-                .as_str(),
-            );
-            return;
-        };
-        self.logger.log_info(
-            format!(
-                "[SERVER-{}] Packet history updated, removed: {:?}",
-                self.id, entry
-            )
-            .as_str(),
-        );
-    }
-
-    /// This function retransmit the packet for which the server received the Nack and tries to calculate a new optimal path.
-    fn retransmit_packet(
-        &mut self,
-        packet: &mut Packet,
-        fragment_index: u64,
-        session_id: SessionIdT,
-    ) {
-        let dest = packet.routing_header.hops[packet.routing_header.hops.len()];
-
-        // Retrieve new best path from server to client otherwise return
-        let Some(srh) = self.get_path(self.id, dest) else {
-            return;
-        };
-
-        let next_hop = srh.hops[srh.hop_index];
-        // Assign the new SourceRoutingHeader
-        packet.routing_header = srh;
-
-        if let Err(msg) = self.send_packets_vec(&[packet.clone()], next_hop) {
-            self.logger.log_error(msg.as_str());
-            return;
-        }
-
-        self.logger.log_info(
-            format!(
-                "[SERVER-{}] Successfully re-sent packet [ ({}, {}) ]",
-                self.id, fragment_index, session_id
-            )
-            .as_str(),
-        );
-    }
-
-    fn nack_handler(&mut self, message: &Nack, session_id: SessionIdT) {
-        // Retrieve the packet that generated the nack
-        let Some(mut packet) = self
-            .packets_history
-            .get(&(message.fragment_index, session_id))
-            .cloned()
-        else {
-            self.logger.log_error(format!("[SERVER-{}] Failed to retrieve packet with [ ({}, {}) ] key from packet history", self.id, message.fragment_index, session_id).as_str());
-            return;
-        };
-
-        match message.nack_type {
-            NackType::Dropped => {
-                self.retransmit_packet(&mut packet, message.fragment_index, session_id);
-            }
-            NackType::DestinationIsDrone => {
-                self.logger.log_warn(
-                    format!(
-                        "[SERVER-{}] Received DestinationIsDrone for {:?} ",
-                        self.id, packet
-                    )
-                    .as_str(),
-                );
-            }
-            NackType::ErrorInRouting(node) => {
-                self.logger.log_warn(
-                    format!(
-                        "[SERVER-{}] Received ErrorInRouting at [NODE-{}] for {}",
-                        self.id, node, packet
-                    )
-                    .as_str(),
-                );
-                // Start new flooding
-                self.init_flood_request();
-                // Retransmit packet
-                self.retransmit_packet(&mut packet, message.fragment_index, session_id);
-            }
-            NackType::UnexpectedRecipient(node) => {
-                self.logger.log_warn(
-                    format!(
-                        "[SERVER-{}] Received UnexpectedRecipient at [NODE-{}] for {}",
-                        self.id, node, packet
-                    )
-                    .as_str(),
-                );
-            }
-        }
-    }
-
-    pub(crate) fn packet_dispatcher(&mut self, packet: &Packet) {
-        // Check if the packet is for this server
-        if !check_packet_dest(&packet.routing_header, self.id, &self.logger) {
-            self.logger
-                .log_info(format!("[SERVER-{}] Packet: {:?}", self.id, packet).as_str());
-            return;
-        }
-
-        self.logger
-            .log_info(format!("[SERVER-{}] Received: {:?}", self.id, packet).as_str());
-
-        match &packet.pack_type {
-            PacketType::MsgFragment(frag) => {
-                let client_id = packet.routing_header.hops[0];
-                let key = (client_id, packet.session_id);
-
-                // Save fragment
-                let total_fragments = frag.total_n_fragments;
-                self.packets_map.entry(key).or_default().push(frag.clone());
-
-                // Send Ack back to the Client
-                self.send_ack(packet, frag.fragment_index);
-
-                // If all fragments are received, assemble the message
-                let fragments = self.packets_map.get(&key).unwrap();
-                if fragments.len() as u64 == total_fragments {
-                    let assembled = match self.packet_forge.assemble_dynamic(fragments.clone()) {
-                        Ok(message) => message,
-                        Err(e) => {
-                            self.logger.log_error(
-                                format!(
-                                    "[SERVER-{}] An error occurred when assembling fragments: {}",
-                                    self.id, e
-                                )
-                                .as_str(),
-                            );
-                            return;
-                        }
-                    };
-
-                    self.message_handler(&assembled);
-                }
-            }
-            PacketType::FloodResponse(flood_res) => {
-                // Update graph with flood response
-                self.routing_handler.update_graph(flood_res.clone());
-            }
-            PacketType::FloodRequest(flood_req) => {
-                // Build flood response
-                self.handle_flood_request(flood_req);
-            }
-            PacketType::Ack(ack) => {
-                // Pop the corresponding fragment from packet_history
-                self.ack_handler(packet.session_id, ack.fragment_index);
-            }
-            PacketType::Nack(nack) => {
-                // Handle different nacks
-                self.nack_handler(nack, packet.session_id);
-            }
-        }
     }
 }

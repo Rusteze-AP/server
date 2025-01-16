@@ -1,7 +1,6 @@
 mod commands_handler;
-mod flooding;
 mod logger_settings;
-mod messages_handler;
+mod packet_dispatcher;
 mod utils;
 
 use crossbeam::channel::{select_biased, Receiver, Sender};
