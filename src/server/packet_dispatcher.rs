@@ -34,7 +34,6 @@ impl Server {
                 self.handle_flood_request(flood_req);
             }
             PacketType::Ack(ack) => {
-                // Pop the corresponding fragment from packet_history
                 self.ack_handler(packet.session_id, ack.fragment_index);
             }
             PacketType::Nack(nack) => {

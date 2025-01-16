@@ -86,22 +86,22 @@ impl Server {
         );
     }
 
-    /// Insert a vector of pakets inside the packets sent history
+    /// Insert a vector of packets inside the packets sent history
     /// ### Error
-    /// If a packet inside the vector does not contain a Fragment it returns an Err(String)
-    pub(crate) fn insert_packet_history(&mut self, packets: &[Packet]) -> Result<(), String> {
+    /// If a `Packet` inside the vector does not contain a `Fragment` it logs an error.
+    pub(crate) fn insert_packet_history(&mut self, packets: &[Packet]) {
         for p in packets {
             let PacketType::MsgFragment(fragment) = &p.pack_type else {
-                return Err(format!(
-                        "[SERVER-{}] Found {:?} while saving Fragments to packet_history! Terminating routine...",
-                        self.id, p.pack_type
-                    ));
+                self.logger.log_error(&format!(
+                    "[SERVER-{}] Found {:?} while saving Fragments to packet_history! Ignoring.",
+                    self.id, p.pack_type
+                ));
+                continue;
             };
 
             let key = (fragment.fragment_index, p.session_id);
             self.packets_history.insert(key, p.clone());
         }
-        Ok(())
     }
 
     /// Retrieve the best path from-to and log error if the path cannot be found.
@@ -215,16 +215,18 @@ impl Server {
     /// - send the fragments contained within each Packet to their destination
     /// - save each packet into `packet_history`
     /// ### Error
-    /// If the channel of the `next_hop` is not found it logs and returns.
-    pub(crate) fn send_save_packets(&mut self, packets: &[Packet], next_hop: NodeId) {
-        // Save packets into history
-        if let Err(msg) = self.insert_packet_history(packets) {
-            self.logger.log_error(msg.as_str());
-            return;
+    /// If the channel of the `next_hop` is not found returns Err(String).
+    pub(crate) fn send_save_packets(
+        &mut self,
+        packets: &[Packet],
+        next_hop: NodeId,
+    ) -> Result<(), String> {
+        if let Err(msg) = self.send_packets_vec(packets, next_hop) {
+            return Err(msg);
         }
 
-        if let Err(msg) = self.send_packets_vec(packets, next_hop) {
-            self.logger.log_error(msg.as_str());
-        }
+        self.insert_packet_history(packets);
+
+        Ok(())
     }
 }

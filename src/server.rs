@@ -2,6 +2,7 @@ mod commands_handler;
 mod logger_settings;
 mod packet_dispatcher;
 mod utils;
+mod video_chunker;
 
 use crossbeam::channel::{select_biased, Receiver, Sender};
 use logger::{LogLevel, Logger};

@@ -3,7 +3,7 @@ mod tracker_handlers;
 
 use super::Server;
 
-use packet_forge::*;
+use packet_forge::MessageType;
 use wg_internal::packet::{Fragment, Packet};
 
 impl Server {
@@ -24,6 +24,9 @@ impl Server {
             }
             MessageType::UnsubscribeClient(msg) => {
                 self.unsubscribe_client(msg);
+            }
+            MessageType::ChunkRequest(msg) => {
+                self.handle_req_video(msg);
             }
             _ => {
                 self.logger.log_error(

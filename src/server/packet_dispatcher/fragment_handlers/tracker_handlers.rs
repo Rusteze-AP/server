@@ -157,15 +157,15 @@ impl Server {
         };
 
         let next_hop = srh.hops[srh.hop_index];
-        self.send_save_packets(&packets, next_hop);
+        if let Err(msg) = self.send_save_packets(&packets, next_hop) {
+            self.logger.log_error(&msg);
+            return;
+        }
 
-        self.logger.log_info(
-            format!(
-                "[SERVER-{}] ResponseFileList procedure terminated!",
-                self.id
-            )
-            .as_str(),
-        );
+        self.logger.log_info(&format!(
+            "[SERVER-{}] ResponseFileList procedure terminated!",
+            self.id
+        ));
     }
 
     pub(crate) fn send_peer_list(&mut self, message: &RequestPeerList) {
@@ -223,7 +223,10 @@ impl Server {
         };
 
         let next_hop = srh.hops[srh.hop_index];
-        self.send_save_packets(&packets, next_hop);
+        if let Err(msg) = self.send_save_packets(&packets, next_hop) {
+            self.logger.log_error(&msg);
+            return;
+        }
 
         self.logger.log_info(
             format!(

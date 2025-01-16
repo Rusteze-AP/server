@@ -5,9 +5,13 @@ edition = "2021"
 
 [dependencies]
 crossbeam = "0.8.4"
+bytes = "1.5.0"
+
 wg_internal = { git = "https://github.com/WGL-2024/WGL_repo_2024.git", features = [
     "debug",
 ] }
 packet_forge = { git = "ssh://git@github.com/Rusteze-AP/packet-forge.git"}
 logger = { git = "ssh://git@github.com/Rusteze-AP/logger.git"}
 routing-handler = { git = "ssh://git@github.com/Rusteze-AP/routing-handler.git" }
+
+
