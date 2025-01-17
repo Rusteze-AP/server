@@ -13,6 +13,7 @@ impl Server {
         let Some(srh) = self.get_path(self.id, message.client_id) else {
             return;
         };
+        let next_hop = srh.hops[srh.hop_index];
 
         for (index, chunk) in video_chunks.enumerate() {
             let Ok(chunk_index) = u32::try_from(index) else {
@@ -40,7 +41,6 @@ impl Server {
                 }
             };
 
-            let next_hop = srh.hops[srh.hop_index];
             if let Err(msg) = self.send_save_packets(&packets, next_hop) {
                 self.logger.log_error(&msg);
                 return;
