@@ -9,24 +9,26 @@ use wg_internal::packet::{Fragment, Packet};
 impl Server {
     /// Call the correct function for the received `MessageType`
     fn message_handler(&mut self, message: &MessageType) {
+        self.logger
+            .log_debug(&format!("[SERVER-{}] Processing {:?}", self.id, message));
         match message {
             MessageType::SubscribeClient(msg) => {
                 self.subscribe_client(msg);
             }
             MessageType::UpdateFileList(msg) => {
-                self.update_file_list(msg);
+                // self.update_file_list(msg);
             }
             MessageType::RequestFileList(msg) => {
-                self.send_file_list(msg);
+                // self.send_file_list(msg);
             }
             MessageType::RequestPeerList(msg) => {
-                self.send_peer_list(msg);
+                // self.send_peer_list(msg);
             }
             MessageType::UnsubscribeClient(msg) => {
-                self.unsubscribe_client(msg);
+                // self.unsubscribe_client(msg);
             }
             MessageType::ChunkRequest(msg) => {
-                self.handle_req_video(msg);
+                // self.handle_req_video(msg);
             }
             _ => {
                 self.logger.log_error(

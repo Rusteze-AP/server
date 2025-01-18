@@ -3,9 +3,9 @@ use crate::{
     utils::get_packet_type,
 };
 
-use super::{FileEntry, Server};
+use super::Server;
 
-use packet_forge::{FileHash, FileMetadata};
+use packet_forge::{FileHash, FileMetadata, Metadata};
 use std::collections::HashSet;
 use wg_internal::{
     controller::DroneEvent,
@@ -14,6 +14,7 @@ use wg_internal::{
 };
 
 impl Server {
+    /*
     /// Add a new entry to `files` hashmap. If the file exists, add the new client to the peers otherwise create a new entry.
     pub(crate) fn add_to_files(
         &mut self,
@@ -84,6 +85,23 @@ impl Server {
         self.logger.log_error(
             format!("Could not retrieve [Client-{client_id}] from available clients.",).as_str(),
         );
+    }
+*/
+    /// Check if the received `file_hash` is correct.
+    /// ### Error
+    /// Log the two mismatched hash
+    pub(crate) fn check_hash<M: Metadata>(
+        file_hash: FileHash,
+        file_metadata: &M,
+    ) -> Result<(), String> {
+        if file_hash != file_metadata.compact_hash_u16() {
+            return Err(format!(
+                "File hash mismatch! Received: [ {:?} ]\nCalculated: [ {:?} ]",
+                file_hash,
+                file_metadata.compact_hash_u16()
+            ));
+        }
+        Ok(())
     }
 
     /// Insert a vector of packets inside the packets sent history

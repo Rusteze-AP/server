@@ -4,26 +4,29 @@ mod packet_dispatcher;
 mod utils;
 mod video_chunker;
 
+use crate::database::Database;
+
 use crossbeam::channel::{select_biased, Receiver, Sender};
 use logger::{LogLevel, Logger};
-use packet_forge::{ClientType, FileHash, FileMetadata, PacketForge, SessionIdT};
+use packet_forge::{ClientType, FileHash, Metadata, PacketForge, SessionIdT};
 use routing_handler::RoutingHandler;
 use std::collections::{HashMap, HashSet};
+use std::fmt::Debug;
 use wg_internal::controller::{DroneCommand, DroneEvent};
 use wg_internal::network::NodeId;
 use wg_internal::packet::{Fragment, Packet};
 
-#[derive(Debug, Clone)]
-pub struct ClientInfo {
-    pub client_type: ClientType,         // "audio" or "video"
-    pub shared_files: HashSet<FileHash>, // Files shared by this client
-}
+// #[derive(Debug, Clone)]
+// pub struct ClientInfo {
+//     pub client_type: ClientType,         // "audio" or "video"
+//     pub shared_files: HashSet<FileHash>, // Files shared by this client
+// }
 
-#[derive(Debug, Clone)]
-pub struct FileEntry {
-    pub file_metadata: FileMetadata,
-    pub peers: HashSet<NodeId>, // List of clients sharing the file
-}
+// #[derive(Debug, Clone)]
+// pub struct FileEntry {
+//     pub file_metadata: FileMetadata,
+//     pub peers: HashSet<NodeId>, // List of clients sharing the file
+// }
 
 pub struct Server {
     id: NodeId,
@@ -38,8 +41,9 @@ pub struct Server {
     // Handle outgoing packets
     packets_history: HashMap<(u64, SessionIdT), Packet>, // (fragment_index, session_id) -> Packet
     // Storage data structures
-    clients: HashMap<NodeId, ClientInfo>,
-    files: HashMap<FileHash, FileEntry>,
+    database: Database,
+    // clients: HashMap<NodeId, ClientInfo>,
+    // files: HashMap<FileHash, FileEntry>,
     // Network graph
     routing_handler: RoutingHandler,
     flood_id: u64,
@@ -66,11 +70,12 @@ impl Server {
             packet_forge: PacketForge::new(),
             packets_map: HashMap::new(),
             packets_history: HashMap::new(),
-            clients: HashMap::new(),
-            files: HashMap::new(),
+            database: Database::new("server_database"),
+            // clients: HashMap::new(),
+            // files: HashMap::new(),
             routing_handler: RoutingHandler::new(),
             flood_id: 0,
-            logger: Logger::new(LogLevel::None as u8, false, "Server-tracker".to_string()),
+            logger: Logger::new(LogLevel::None as u8, false, "Server".to_string()),
         }
     }
 
