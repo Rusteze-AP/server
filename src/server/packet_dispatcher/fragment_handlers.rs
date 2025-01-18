@@ -1,32 +1,35 @@
-mod audio_video_handlers;
+// mod audio_video_handlers;
 mod tracker_handlers;
 
 use super::Server;
 
-use packet_forge::MessageType;
+use packet_forge::{MessageType, Metadata};
+use std::fmt::Debug;
 use wg_internal::packet::{Fragment, Packet};
 
 impl Server {
     /// Call the correct function for the received `MessageType`
-    fn message_handler(&mut self, message: &MessageType) {
+    fn message_handler<M: Metadata + Debug>(&mut self, message: &MessageType<M>) {
+        self.logger
+            .log_debug(&format!("[SERVER-{}] Processing {:?}", self.id, message));
         match message {
             MessageType::SubscribeClient(msg) => {
                 self.subscribe_client(msg);
             }
             MessageType::UpdateFileList(msg) => {
-                self.update_file_list(msg);
+                // self.update_file_list(msg);
             }
             MessageType::RequestFileList(msg) => {
-                self.send_file_list(msg);
+                // self.send_file_list(msg);
             }
             MessageType::RequestPeerList(msg) => {
-                self.send_peer_list(msg);
+                // self.send_peer_list(msg);
             }
             MessageType::UnsubscribeClient(msg) => {
-                self.unsubscribe_client(msg);
+                // self.unsubscribe_client(msg);
             }
             MessageType::ChunkRequest(msg) => {
-                self.handle_req_video(msg);
+                // self.handle_req_video(msg);
             }
             _ => {
                 self.logger.log_error(
@@ -41,7 +44,11 @@ impl Server {
     }
 
     /// Add the `Fragment` to the map and process it when all the fragments have been received
-    pub(crate) fn fragment_handler(&mut self, packet: &Packet, frag: &Fragment) {
+    pub(crate) fn fragment_handler<M: Metadata + Debug>(
+        &mut self,
+        packet: &Packet,
+        frag: &Fragment,
+    ) {
         let client_id = packet.routing_header.hops[0];
         let key = (client_id, packet.session_id);
 
@@ -50,24 +57,25 @@ impl Server {
         self.packets_map.entry(key).or_default().push(frag.clone());
 
         // Send Ack back to the Client
-        self.send_ack(packet, frag.fragment_index);
+        // self.send_ack(packet, frag.fragment_index);
 
         // If all fragments are received, assemble the message
         let fragments = self.packets_map.get(&key).unwrap();
         if fragments.len() as u64 == total_fragments {
-            let assembled = match self.packet_forge.assemble_dynamic(fragments.clone()) {
-                Ok(message) => message,
-                Err(e) => {
-                    self.logger.log_error(
-                        format!(
-                            "[SERVER-{}] An error occurred when assembling fragments: {}",
-                            self.id, e
-                        )
-                        .as_str(),
-                    );
-                    return;
-                }
-            };
+            let assembled: MessageType<M> =
+                match self.packet_forge.assemble_dynamic(fragments.clone()) {
+                    Ok(message) => message,
+                    Err(e) => {
+                        self.logger.log_error(
+                            format!(
+                                "[SERVER-{}] An error occurred when assembling fragments: {}",
+                                self.id, e
+                            )
+                            .as_str(),
+                        );
+                        return;
+                    }
+                };
 
             self.message_handler(&assembled);
         }

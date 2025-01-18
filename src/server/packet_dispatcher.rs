@@ -3,14 +3,17 @@ mod flooding_handlers;
 mod fragment_handlers;
 mod nack_handler;
 
+use std::fmt::Debug;
+
 use super::Server;
 
 use crate::utils::check_packet_dest;
+use packet_forge::Metadata;
 use wg_internal::packet::{Packet, PacketType};
 
 impl Server {
     // Call the correct function for the received `Packet`
-    pub(crate) fn packet_dispatcher(&mut self, packet: &Packet) {
+    pub(crate) fn packet_dispatcher<M: Metadata + Debug>(&mut self, packet: &Packet) {
         // Check if the packet is for this server
         if !check_packet_dest(&packet.routing_header, self.id, &self.logger) {
             self.logger
@@ -23,7 +26,7 @@ impl Server {
 
         match &packet.pack_type {
             PacketType::MsgFragment(frag) => {
-                self.fragment_handler(packet, frag);
+                self.fragment_handler::<M>(packet, frag);
             }
             PacketType::FloodResponse(flood_res) => {
                 // Update graph with flood response

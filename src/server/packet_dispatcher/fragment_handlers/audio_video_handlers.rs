@@ -1,13 +1,15 @@
+use std::fmt::Debug;
+
 use crate::server::video_chunker::get_video_chunks;
 
 use super::Server;
 
-use packet_forge::{ChunkRequest, ChunkResponse};
+use packet_forge::{ChunkRequest, ChunkResponse, Metadata};
 
 impl Server {
     // TODO Implement handling Audio messages for server
 
-    pub(crate) fn handle_req_video(&mut self, message: &ChunkRequest) {
+    pub(crate) fn handle_req_video<M: Metadata + Debug>(&mut self, message: &ChunkRequest) {
         let video_chunks = get_video_chunks(message.file_hash);
 
         let Some(srh) = self.get_path(self.id, message.client_id) else {
@@ -28,7 +30,7 @@ impl Server {
             // Disassemble ChunkResponse into Packets
             let packets = match self
                 .packet_forge
-                .disassemble(chunk_res.clone(), srh.clone())
+                .disassemble::<ChunkResponse, M>(chunk_res.clone(), srh.clone())
             {
                 Ok(packets) => packets,
                 Err(msg) => {
