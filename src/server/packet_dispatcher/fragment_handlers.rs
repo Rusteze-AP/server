@@ -16,16 +16,16 @@ impl Server {
                 self.subscribe_client(msg);
             }
             MessageType::UpdateFileList(msg) => {
-                // self.update_file_list(msg);
+                self.update_file_list(msg);
             }
             MessageType::RequestFileList(msg) => {
-                // self.send_file_list(msg);
+                self.send_file_list(msg);
             }
             MessageType::RequestPeerList(msg) => {
-                // self.send_peer_list(msg);
+                self.send_peer_list(msg);
             }
             MessageType::UnsubscribeClient(msg) => {
-                // self.unsubscribe_client(msg);
+                self.unsubscribe_client(msg);
             }
             MessageType::ChunkRequest(msg) => {
                 // self.handle_req_video(msg);

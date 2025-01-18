@@ -1,6 +1,7 @@
 use std::{collections::HashSet, fs};
 
 use packet_forge::{ClientType, FileHash, Metadata, SongMetadata};
+use routing_handler::Node;
 use wg_internal::network::NodeId;
 
 use super::{construct_payload_key, Database, FileEntry};
@@ -30,7 +31,7 @@ impl Database {
     /// Inserts song payload into the database.
     pub(crate) fn insert_song_payload(&self, id: FileHash, payload: Vec<u8>) -> Result<(), String> {
         let key = construct_payload_key("song", id);
-        match self.db.insert(key, payload) {
+        match self.songs_tree.insert(key, payload) {
             Ok(_) => Ok(()),
             Err(e) => Err(format!("Error inserting song payload: {}", e)),
         }
@@ -90,6 +91,56 @@ impl Database {
         Ok(())
     }
 
+    pub(crate) fn remove_song(&self, id: FileHash) -> Result<(), String> {
+        if let Err(msg) = self.songs_tree.remove(id.to_be_bytes()) {
+            return Err(format!("An error occurred while removing a song: {}", msg));
+        }
+        Ok(())
+    }
+
+    pub(crate) fn remove_peer_from_songs(&self, peer_id: NodeId) -> Result<(), String> {
+        let mut errors: Vec<String> = Vec::new();
+
+        // Process songs_tree
+        for entry in self.songs_tree.iter() {
+            match entry {
+                Ok((_, value)) => {
+                    let mut file_entry: FileEntry<SongMetadata> = match bincode::deserialize(&value)
+                    {
+                        Ok(fe) => fe,
+                        Err(e) => {
+                            errors.push(format!("Deserialization error: {}", e));
+                            continue; // Skip this entry
+                        }
+                    };
+
+                    // Remove the peer if it exists
+                    if file_entry.peers.remove(&peer_id) {
+                        // Re-insertion with edited peer list
+                        if let Err(e) = self
+                            .insert_song_file_entry(file_entry.file_metadata.id, &mut file_entry)
+                        {
+                            errors.push(format!("Error updating song entry: {}", e));
+                        }
+                    }
+                }
+                Err(e) => {
+                    errors.push(format!("Error iterating songs_tree: {}", e));
+                }
+            }
+        }
+        // Log or handle collected errors
+        if !errors.is_empty() {
+            for error in &errors {
+                // TODO use logger
+                eprintln!("{}", error); // Log errors
+            }
+            return Err(format!("Completed with {} errors", errors.len()));
+        }
+
+        Ok(())
+    }
+
     // TODO: missing VideoMetadata struct
     /// Insert a FileEntry for VideoMetadata into the video_tree
     // pub(crate) fn insert_video_file_entry(&self, mut file_hash: FileHash, file_entry: &mut FileEntry<VideoMetadata>) -> Result<(), String> {
@@ -126,6 +177,61 @@ impl Database {
     //     Ok(())
     // }
 
+    pub(crate) fn insert_video_peer(
+        &self,
+        song_metadata: &SongMetadata,
+        client_id: NodeId,
+    ) -> Result<(), String> {
+        todo!()
+    }
+
+    pub(crate) fn remove_video(&self, peer_id: FileHash) -> Result<(), String> {
+        todo!()
+    }
+
+    // pub(crate) fn remove_peer_from_videos(&self, peer_id: NodeId) -> Result<(), String> {
+    //     let mut errors: Vec<String> = Vec::new();
+
+    //     // Process songs_tree
+    //     for entry in self.video_tree.iter() {
+    //         match entry {
+    //             Ok((_, value)) => {
+    //                 let mut file_entry: FileEntry<SongMetadata> = match bincode::deserialize(&value) {
+    //                     Ok(fe) => fe,
+    //                     Err(e) => {
+    //                         errors.push(format!("Deserialization error: {}", e));
+    //                         continue; // Skip this entry
+    //                     }
+    //                 };
+
+    //                 // Remove the peer if it exists
+    //                 if file_entry.peers.remove(&peer_id) {
+    //                     // Re-insertion with edited peer list
+    //                     if let Err(e) = self.insert_video_file_entry(
+    //                         file_entry.file_metadata.id,
+    //                         &mut file_entry,
+    //                     ) {
+    //                         errors.push(format!("Error updating song entry: {}", e));
+    //                     }
+    //                 }
+    //             }
+    //             Err(e) => {
+    //                 errors.push(format!("Error iterating songs_tree: {}", e));
+    //             }
+    //         }
+    //     }
+    //     // Log or handle collected errors
+    //     if !errors.is_empty() {
+    //         for error in &errors {
+    //             // TODO use logger
+    //             eprintln!("{}", error); // Log errors
+    //         }
+    //         return Err(format!("Completed with {} errors", errors.len()));
+    //     }
+
+    //     Ok(())
+    // }
+
     /// Insert the client into the tree. To use after the use of `contains_client`, this will replace any previous entry.
     pub(crate) fn insert_client(&self, id: NodeId, client_type: ClientType) -> Result<(), String> {
         let serialized_type =
@@ -135,5 +241,21 @@ impl Database {
             .insert(id.to_be_bytes(), serialized_type)
             .map_err(|e| format!("Error inserting song metadata: {}", e));
         Ok(())
+    }
+
+    pub(crate) fn remove_client(&self, id: NodeId) -> Result<Option<ClientType>, String> {
+        match self.clients_tree.remove(id.to_be_bytes()) {
+            Ok(Some(removed_value)) => {
+                // Deserialize the removed value into ClientType
+                bincode::deserialize(&removed_value)
+                    .map(Some) // Wrap the ClientType in Option
+                    .map_err(|e| format!("Deserialization error: {}", e)) // Handle deserialization errors
+            }
+            Ok(None) => Ok(None), // No client found, return None
+            Err(msg) => Err(format!(
+                "An error occurred while removing the client: {}",
+                msg
+            )), 
+        }
     }
 }

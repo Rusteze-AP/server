@@ -15,78 +15,99 @@ use wg_internal::{
 
 impl Server {
     /*
-    /// Add a new entry to `files` hashmap. If the file exists, add the new client to the peers otherwise create a new entry.
-    pub(crate) fn add_to_files(
-        &mut self,
-        client_id: NodeId,
-        file_hash: FileHash,
-        file_metadata: &FileMetadata,
-    ) {
-        self.files
-            .entry(file_hash)
-            .and_modify(|entry| {
-                // If the file exists, add the new client to the peers
-                entry.peers.insert(client_id);
-            })
-            .or_insert(FileEntry {
-                file_metadata: file_metadata.clone(),
-                peers: HashSet::from([client_id]),
-            });
-    }
+        /// Add a new entry to `files` hashmap. If the file exists, add the new client to the peers otherwise create a new entry.
+        pub(crate) fn add_to_files(
+            &mut self,
+            client_id: NodeId,
+            file_hash: FileHash,
+            file_metadata: &FileMetadata,
+        ) {
+            self.files
+                .entry(file_hash)
+                .and_modify(|entry| {
+                    // If the file exists, add the new client to the peers
+                    entry.peers.insert(client_id);
+                })
+                .or_insert(FileEntry {
+                    file_metadata: file_metadata.clone(),
+                    peers: HashSet::from([client_id]),
+                });
+        }
 
-    /// Remove a client from the peers of a file in the `files` hashmap.
-    /// If the file has no more peers, remove the file entry entirely.
-    pub(crate) fn remove_from_files(&mut self, client_id: NodeId, file_hash: FileHash) {
-        if let Some(entry) = self.files.get_mut(&file_hash) {
-            // Remove the client from the peers
-            entry.peers.remove(&client_id);
+        /// Remove a client from the peers of a file in the `files` hashmap.
+        /// If the file has no more peers, remove the file entry entirely.
+        pub(crate) fn remove_from_files(&mut self, client_id: NodeId, file_hash: FileHash) {
+            if let Some(entry) = self.files.get_mut(&file_hash) {
+                // Remove the client from the peers
+                entry.peers.remove(&client_id);
 
-            // If there are no more peers, remove the file entry
-            if entry.peers.is_empty() {
-                self.files.remove(&file_hash);
+                // If there are no more peers, remove the file entry
+                if entry.peers.is_empty() {
+                    self.files.remove(&file_hash);
+                }
             }
         }
-    }
 
-    /// Check if the received `file_hash` is correct.
-    /// ### Error
-    /// Log the two mismatched hash
-    pub(crate) fn check_hash(
-        file_hash: FileHash,
-        file_metadata: &FileMetadata,
-    ) -> Result<(), String> {
-        if file_hash != file_metadata.compact_hash_u16() {
-            return Err(format!(
-                "File hash mismatch: [ {:?} ] != [ {:?} ]",
-                file_hash,
-                file_metadata.compact_hash_u16()
-            ));
-        }
-        Ok(())
-    }
-
-    /// Add to the given `client_id` entry in `clients` hashmap a new `file_hash`
-    pub(crate) fn add_shared_file(&mut self, client_id: NodeId, file_hash: FileHash) {
-        if let Some(client_info) = self.clients.get_mut(&client_id) {
-            client_info.shared_files.insert(file_hash);
-            return;
+        /// Check if the received `file_hash` is correct.
+        /// ### Error
+        /// Log the two mismatched hash
+        pub(crate) fn check_hash(
+            file_hash: FileHash,
+            file_metadata: &FileMetadata,
+        ) -> Result<(), String> {
+            if file_hash != file_metadata.compact_hash_u16() {
+                return Err(format!(
+                    "File hash mismatch: [ {:?} ] != [ {:?} ]",
+                    file_hash,
+                    file_metadata.compact_hash_u16()
+                ));
+            }
+            Ok(())
         }
 
-        self.logger.log_error(
-            format!("Could not retrieve [Client-{client_id}] from available clients.",).as_str(),
-        );
+        /// Add to the given `client_id` entry in `clients` hashmap a new `file_hash`
+        pub(crate) fn add_shared_file(&mut self, client_id: NodeId, file_hash: FileHash) {
+            if let Some(client_info) = self.clients.get_mut(&client_id) {
+                client_info.shared_files.insert(file_hash);
+                return;
+            }
+
+            self.logger.log_error(
+                format!("Could not retrieve [Client-{client_id}] from available clients.",).as_str(),
+            );
+        }
+
+        /// Remove to the given `client_id` entry in `clients` hashmap the corresponding `file_hash`
+        pub(crate) fn remove_shared_file(&mut self, client_id: NodeId, file_hash: FileHash) {
+            if let Some(client_info) = self.clients.get_mut(&client_id) {
+                client_info.shared_files.remove(&file_hash);
+            }
+            self.logger.log_error(
+                format!("Could not retrieve [Client-{client_id}] from available clients.",).as_str(),
+            );
+        }
+    */
+
+    pub(crate) fn log_error(&self, msg: &str) {
+        self.logger
+            .log_error(&format!("[SERVER-{}] {}", self.id, msg));
     }
 
-    /// Remove to the given `client_id` entry in `clients` hashmap the corresponding `file_hash`
-    pub(crate) fn remove_shared_file(&mut self, client_id: NodeId, file_hash: FileHash) {
-        if let Some(client_info) = self.clients.get_mut(&client_id) {
-            client_info.shared_files.remove(&file_hash);
-        }
-        self.logger.log_error(
-            format!("Could not retrieve [Client-{client_id}] from available clients.",).as_str(),
-        );
+    pub(crate) fn log_info(&self, msg: &str) {
+        self.logger
+            .log_info(&format!("[SERVER-{}] {}", self.id, msg));
     }
-*/
+
+    pub(crate) fn log_debug(&self, msg: &str) {
+        self.logger
+            .log_debug(&format!("[SERVER-{}] {}", self.id, msg));
+    }
+
+    pub(crate) fn log_warn(&self, msg: &str) {
+        self.logger
+            .log_warn(&format!("[SERVER-{}] {}", self.id, msg));
+    }
+
     /// Check if the received `file_hash` is correct.
     /// ### Error
     /// Log the two mismatched hash
@@ -110,9 +131,9 @@ impl Server {
     pub(crate) fn insert_packet_history(&mut self, packets: &[Packet]) {
         for p in packets {
             let PacketType::MsgFragment(fragment) = &p.pack_type else {
-                self.logger.log_error(&format!(
-                    "[SERVER-{}] Found {:?} while saving Fragments to packet_history! Ignoring.",
-                    self.id, p.pack_type
+                self.log_error(&format!(
+                    "Found {:?} while saving Fragments to packet_history! Ignoring.",
+                    p.pack_type
                 ));
                 continue;
             };
@@ -127,13 +148,7 @@ impl Server {
         if let Some(srh) = self.routing_handler.best_path(from, to) {
             Some(srh)
         } else {
-            self.logger.log_error(
-                format!(
-                    "[SERVER-{}] No path found from {} to {}!",
-                    self.id, self.id, to
-                )
-                .as_str(),
-            );
+            self.log_error(&format!("No path found from {} to {}!", self.id, to));
             None
         }
     }
@@ -144,17 +159,15 @@ impl Server {
             &self.controller_send,
             &DroneEvent::PacketSent(packet.clone()),
         ) {
-            self.logger.log_error(&format!(
-                "[SERVER-{}][{}] - Packet event forward: {}",
-                self.id,
+            self.log_error(&format!(
+                "[{}] - Packet event forward: {}",
                 packet_str.to_ascii_uppercase(),
                 err
             ));
             return;
         }
-        self.logger.log_debug(&format!(
-            "[SERVER-{}][{}] - Packet event sent successfully",
-            self.id,
+        self.log_debug(&format!(
+            "[{}] - Packet event sent successfully",
             packet_str.to_ascii_uppercase()
         ));
     }
@@ -168,7 +181,7 @@ impl Server {
         // Get the sender channel for the next hop and forward
         let sender = get_sender(next_hop, &self.packet_send);
         if sender.is_err() {
-            return Err(format!("[SERVER-{}] {}", self.id, &sender.unwrap_err()));
+            return Err(format!("{}", &sender.unwrap_err()));
         }
         let sender = sender.unwrap();
 
@@ -176,8 +189,8 @@ impl Server {
             let packet_str = get_packet_type(&packet.pack_type);
             if let Err(err) = send_packet(&sender, packet) {
                 return Err(format!(
-                    "[SERVER-{}] Failed to send packet to [DRONE-{}].\nPacket: {}\n Error: {}",
-                    self.id, next_hop, packet, err
+                    "Failed to send packet to [DRONE-{}].\nPacket: {}\n Error: {}",
+                    next_hop, packet, err
                 ));
             }
             self.event_dispatcher(packet, &packet_str);
@@ -189,43 +202,36 @@ impl Server {
     pub(crate) fn send_ack(&mut self, packet: &Packet, fragment_index: u64) {
         let source_routing_header = packet.routing_header.get_reversed();
         if source_routing_header.hop_index != 1 {
-            self.logger.log_error(format!(
-                    "[SERVER-{}] - Unable to reverse source routing header. \n Hops: {} \n Hop index: {}",
-                    self.id, packet.routing_header, packet.routing_header.hop_index
-                ).as_str());
+            self.log_error(&format!(
+                "Unable to reverse source routing header. \n Hops: {} \n Hop index: {}",
+                packet.routing_header, packet.routing_header.hop_index
+            ));
             return;
         }
         let next_hop = source_routing_header.hops[1];
         let ack = Packet::new_ack(source_routing_header, packet.session_id, fragment_index);
 
         if let Err(msg) = self.send_packets_vec(&[ack], next_hop) {
-            self.logger.log_error(&msg);
-            self.logger.log_debug(&format!(
-                "[SERVER-{}][ACK] Trying to use SC shortcut...",
-                self.id
-            ));
+            self.log_error(&msg);
+            self.log_debug(&format!("[ACK] Trying to use SC shortcut..."));
 
             // Send to SC
             if let Err(msg) = sc_send_packet(
                 &self.controller_send,
                 &DroneEvent::ControllerShortcut(packet.clone()),
             ) {
-                self.logger
-                    .log_error(&format!("[SERVER-{}][ACK] - {}", self.id, msg));
-                self.logger.log_error(&format!(
-                    "[SERVER-{}][ACK] - Unable to forward packet to neither next hop nor SC. \n Packet: {}",
-                    self.id, packet
+                self.log_error(&format!("[ACK] - {}", msg));
+                self.log_error(&format!(
+                    "[ACK] - Unable to forward packet to neither next hop nor SC. \n Packet: {}",
+                    packet
                 ));
                 return;
             }
 
-            self.logger.log_debug(
-                format!(
-                    "[SERVER-{}][ACK] - Successfully sent flood response through SC. Packet: {}",
-                    self.id, packet
-                )
-                .as_str(),
-            );
+            self.log_debug(&format!(
+                "[ACK] - Successfully sent flood response through SC. Packet: {}",
+                packet
+            ));
         }
     }
 
