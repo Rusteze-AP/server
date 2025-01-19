@@ -28,10 +28,7 @@ impl Server {
                 flood_req.clone(),
             );
             if let Err(err) = send_packet(sender, &packet) {
-                self.logger.log_error(&format!(
-                    "[SERVER-{}][FLOODING] Sending to [DRONE-{}]: {}",
-                    self.id, id, err
-                ));
+                self.log_error(&format!("[FLOODING] Sending to [DRONE-{}]: {}", id, err));
             }
             let packet_str = get_packet_type(&packet.pack_type);
             self.event_dispatcher(&packet, &packet_str);
@@ -55,14 +52,14 @@ impl Server {
 
         if let Err(err) = sender {
             return Err(format!(
-                "[SERVER-{}][FLOOD RESPONSE] - Error occurred while sending flood response: {}",
-                self.id, err
+                "[FLOOD RESPONSE] - Error occurred while sending flood response: {}",
+                err
             ));
         }
 
         let sender = sender.unwrap();
         if let Err(err) = send_packet(&sender, packet) {
-            self.logger.log_warn(&format!("[SERVER-{}][FLOOD RESPONSE] - Failed to forward packet to [DRONE-{}]. \n Error: {} \n Trying to use SC shortcut...", self.id, packet.routing_header.current_hop().unwrap(), err));
+            self.log_warn(&format!("[FLOOD RESPONSE] - Failed to forward packet to [DRONE-{}]. \n Error: {} \n Trying to use SC shortcut...", packet.routing_header.current_hop().unwrap(), err));
             // Send to SC
             let res = sc_send_packet(
                 &self.controller_send,
@@ -70,26 +67,29 @@ impl Server {
             );
 
             if let Err(err) = res {
-                self.logger
-                    .log_error(&format!("[SERVER-{}][FLOOD RESPONSE] - {}", self.id, err));
+                self.log_error(&format!("[FLOOD RESPONSE] - {}", err));
                 return Err(format!(
-                    "[SERVER-{}][FLOOD RESPONSE] - Unable to forward packet to neither next hop nor SC. \n Packet: {}",
-                    self.id, packet
+                    "[FLOOD RESPONSE] - Unable to forward packet to neither next hop nor SC. \n Packet: {}",
+                    packet
                 ));
             }
 
-            self.logger.log_debug(&format!("[SERVER-{}][FLOOD RESPONSE] - Successfully sent flood response through SC. Packet: {}", self.id, packet));
+            self.log_debug(&format!(
+                "[FLOOD RESPONSE] - Successfully sent flood response through SC. Packet: {}",
+                packet
+            ));
         }
         Ok(())
     }
 
+    /// Build a flood response for the received flood request
     pub(crate) fn handle_flood_request(&self, message: &FloodRequest) {
         let (dest, packet) = Self::build_flood_response(message);
 
         let res = self.send_flood_response(dest, &packet);
 
         if let Err(msg) = res {
-            self.logger.log_error(msg.as_str());
+            self.log_error(&msg);
         }
     }
 }

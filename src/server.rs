@@ -98,7 +98,7 @@ impl Server {
                     if let Ok(command) = command {
                         self.command_dispatcher(&command);
                     } else {
-                        self.logger.log_error(format!("[SERVER-{}] Error receiving command!", self.id).as_str());
+                        self.log_error("Error receiving command!");
                         break;
                     }
                 },
@@ -106,7 +106,7 @@ impl Server {
                     if let Ok(packet) = packet {
                         self.packet_dispatcher(&packet);
                     } else {
-                        self.logger.log_error(format!("[SERVER-{}] Error receiving message!", self.id).as_str());
+                        self.log_error("Error receiving message!");
                         break;
                     }
                 }

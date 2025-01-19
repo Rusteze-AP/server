@@ -1,8 +1,6 @@
 use super::Server;
 
 use packet_forge::*;
-use serde::de::value::MapAccessDeserializer;
-use std::collections::HashSet;
 use wg_internal::network::NodeId;
 
 impl Server {
@@ -178,6 +176,7 @@ impl Server {
         self.log_info("ResponseFileList sent successfully!");
     }
 
+    /// Send a list of peers from which the requested file can be downloaded
     pub(crate) fn send_peer_list(&mut self, message: &RequestPeerList) {
         let client_type = self.database.get_client_type(message.client_id);
 
@@ -255,6 +254,7 @@ impl Server {
         self.log_info("ResponsePeerList sent successfully!");
     }
 
+    /// Unsubscribe the information of a client
     pub(crate) fn unsubscribe_client(&mut self, message: &UnsubscribeClient) {
         // Check if client is subscribed
         if !self.database.contains_client(message.client_id) {

@@ -255,7 +255,7 @@ impl Database {
             Err(msg) => Err(format!(
                 "An error occurred while removing the client: {}",
                 msg
-            )), 
+            )),
         }
     }
 }

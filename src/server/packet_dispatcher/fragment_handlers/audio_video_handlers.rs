@@ -17,10 +17,7 @@ impl Server {
 
         for (index, chunk) in video_chunks.enumerate() {
             let Ok(chunk_index) = u32::try_from(index) else {
-                self.logger.log_error(&format!(
-                    "[SERVER-{}] Could not convert chunk_index to u32",
-                    self.id
-                ));
+                self.log_error("Could not convert chunk_index to u32");
                 return;
             };
             let chunk_res = ChunkResponse::new(message.file_hash, chunk_index, chunk.clone());
@@ -32,24 +29,18 @@ impl Server {
             {
                 Ok(packets) => packets,
                 Err(msg) => {
-                    self.logger.log_error(&format!("[SERVER-{}] Error disassembling ChunkResponse message! (log_info to see more information)", self.id));
-                    self.logger.log_info(&format!(
-                        "[SERVER-{}] {:?}\n Error: {}",
-                        self.id, chunk_res, msg
-                    ));
+                    self.log_error("Error disassembling ChunkResponse message! (log_info to see more information)");
+                    self.log_info(&format!("{:?}\n Error: {}", chunk_res, msg));
                     return;
                 }
             };
 
             if let Err(msg) = self.send_save_packets(&packets, next_hop) {
-                self.logger.log_error(&msg);
+                self.log_error(&msg);
                 return;
             }
 
-            self.logger.log_info(&format!(
-                "[SERVER-{}] Correctly forwarded: {:?}",
-                self.id, chunk_res
-            ));
+            self.log_info(&format!("Correctly forwarded: {:?}", chunk_res));
         }
     }
 }

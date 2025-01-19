@@ -23,19 +23,17 @@ impl Server {
         packet.routing_header = srh;
 
         if let Err(msg) = self.send_packets_vec(&[packet.clone()], next_hop) {
-            self.logger.log_error(msg.as_str());
+            self.log_error(&msg);
             return;
         }
 
-        self.logger.log_info(
-            format!(
-                "[SERVER-{}] Successfully re-sent packet [ ({}, {}) ]",
-                self.id, fragment_index, session_id
-            )
-            .as_str(),
-        );
+        self.log_info(&format!(
+            "Successfully re-sent packet [ ({}, {}) ]",
+            fragment_index, session_id
+        ));
     }
 
+    /// Handle different types of nacks
     pub(crate) fn nack_handler(&mut self, message: &Nack, session_id: SessionIdT) {
         // Retrieve the packet that generated the nack
         let Some(mut packet) = self
@@ -43,7 +41,10 @@ impl Server {
             .get(&(message.fragment_index, session_id))
             .cloned()
         else {
-            self.logger.log_error(format!("[SERVER-{}] Failed to retrieve packet with [ ({}, {}) ] key from packet history", self.id, message.fragment_index, session_id).as_str());
+            self.log_error(&format!(
+                "Failed to retrieve packet with [ ({}, {}) ] key from packet history",
+                message.fragment_index, session_id
+            ));
             return;
         };
 
@@ -52,35 +53,23 @@ impl Server {
                 self.retransmit_packet(&mut packet, message.fragment_index, session_id);
             }
             NackType::DestinationIsDrone => {
-                self.logger.log_warn(
-                    format!(
-                        "[SERVER-{}] Received DestinationIsDrone for {:?} ",
-                        self.id, packet
-                    )
-                    .as_str(),
-                );
+                self.log_warn(&format!("Received DestinationIsDrone for {:?} ", packet));
             }
             NackType::ErrorInRouting(node) => {
-                self.logger.log_warn(
-                    format!(
-                        "[SERVER-{}] Received ErrorInRouting at [NODE-{}] for {}",
-                        self.id, node, packet
-                    )
-                    .as_str(),
-                );
+                self.log_warn(&format!(
+                    "Received ErrorInRouting at [NODE-{}] for {}",
+                    node, packet
+                ));
                 // Start new flooding
                 self.init_flood_request();
                 // Retransmit packet
                 self.retransmit_packet(&mut packet, message.fragment_index, session_id);
             }
             NackType::UnexpectedRecipient(node) => {
-                self.logger.log_warn(
-                    format!(
-                        "[SERVER-{}] Received UnexpectedRecipient at [NODE-{}] for {}",
-                        self.id, node, packet
-                    )
-                    .as_str(),
-                );
+                self.log_warn(&format!(
+                    "Received UnexpectedRecipient at [NODE-{}] for {}",
+                    node, packet
+                ));
             }
         }
     }

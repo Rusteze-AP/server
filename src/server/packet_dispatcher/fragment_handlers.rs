@@ -28,16 +28,10 @@ impl Server {
                 self.unsubscribe_client(msg);
             }
             MessageType::ChunkRequest(msg) => {
-                // self.handle_req_video(msg);
+                self.handle_req_video(msg);
             }
             _ => {
-                self.logger.log_error(
-                    format!(
-                        "[SERVER-{}] Unexpected message type received: {:#?}",
-                        self.id, message
-                    )
-                    .as_str(),
-                );
+                self.log_error(&format!("Unexpected message type received: {:#?}", message));
             }
         }
     }
@@ -60,13 +54,10 @@ impl Server {
             let assembled = match self.packet_forge.assemble_dynamic(fragments.clone()) {
                 Ok(message) => message,
                 Err(e) => {
-                    self.logger.log_error(
-                        format!(
-                            "[SERVER-{}] An error occurred when assembling fragments: {}",
-                            self.id, e
-                        )
-                        .as_str(),
-                    );
+                    self.log_error(&format!(
+                        "An error occurred when assembling fragments: {}",
+                        e
+                    ));
                     return;
                 }
             };
