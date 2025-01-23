@@ -1,4 +1,4 @@
-use packet_forge::{ClientType, FileHash, SongMetadata, VideoMetadata};
+use packet_forge::{ClientType, FileHash, SongMetadata, VideoMetaData};
 use wg_internal::network::NodeId;
 
 use super::{construct_payload_key, Database, FileEntry};
@@ -16,7 +16,7 @@ impl Database {
     }
 
     // TODO `get_video_entry`
-    pub(crate) fn get_video_entry(&self, id: FileHash) -> Result<FileEntry<VideoMetadata>, String> {
+    pub(crate) fn get_video_entry(&self, id: FileHash) -> Result<FileEntry<VideoMetaData>, String> {
         todo!()
     }
 
@@ -51,7 +51,7 @@ impl Database {
     }
 
     // TODO
-    pub(crate) fn get_all_videos_metadata(&self) -> Result<Vec<VideoMetadata>, String> {
+    pub(crate) fn get_all_videos_metadata(&self) -> Result<Vec<VideoMetaData>, String> {
         todo!()
     }
 
