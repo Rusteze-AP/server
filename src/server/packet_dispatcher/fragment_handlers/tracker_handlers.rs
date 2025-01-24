@@ -4,18 +4,32 @@ use packet_forge::*;
 use wg_internal::network::NodeId;
 
 impl Server {
-    fn add_new_song(&self, song_metadata: &SongMetadata, client_id: NodeId) {
+    fn add_new_song(&self, song_metadata: &SongMetaData, client_id: NodeId) {
         if let Err(msg) = self.database.insert_song_peer(song_metadata, client_id) {
             self.log_error(&msg);
         }
-        self.log_info(&format!("Added new File [ {:?} ]", song_metadata));
+        self.log_info(&format!("Added new Song [ {:?} ]", song_metadata));
     }
 
     fn remove_existing_song(&self, song_id: FileHash) {
         if let Err(msg) = self.database.remove_song(song_id) {
             self.log_error(&msg);
         }
-        self.log_info(&format!("Removed File with ID [ {} ]", song_id));
+        self.log_info(&format!("Removed Song with ID [ {} ]", song_id));
+    }
+
+    fn add_new_video(&self, video_metadata: &VideoMetaData, client_id: NodeId) {
+        if let Err(msg) = self.database.insert_video_peer(video_metadata, client_id) {
+            self.log_error(&msg);
+        }
+        self.log_info(&format!("Added new Video [ {:?} ]", video_metadata));
+    }
+
+    fn remove_existing_video(&self, video_id: FileHash) {
+        if let Err(msg) = self.database.remove_video(video_id) {
+            self.log_error(&msg);
+        }
+        self.log_info(&format!("Removed Video with ID [ {} ]", video_id));
     }
 
     /// Add client information to the database
@@ -42,10 +56,10 @@ impl Server {
             return;
         }
 
-        // Add files to audio or video
+        // Add files to song or video
         for file in &message.available_files {
             match file {
-                FileMetadata::Audio(song_metadata) => {
+                FileMetadata::Song(song_metadata) => {
                     if let Err(msg) = Self::check_hash(song_metadata.id, song_metadata) {
                         self.log_error(&msg);
                         continue;
@@ -53,14 +67,13 @@ impl Server {
                     self.add_new_song(song_metadata, message.client_id);
                 }
                 FileMetadata::Video(video_metadata) => {
-                    // TODO
-                    // if let Err(msg) = Self::check_hash(video_metadata.id, video_metadata) {
-                    //     self.log_error(&msg);
-                    //     continue;
-                    // }
-                    // self.add_new_video(video_metadata, message.client_id);
+                    if let Err(msg) = Self::check_hash(video_metadata.id, video_metadata) {
+                        self.log_error(&msg);
+                        continue;
+                    }
+                    self.add_new_video(video_metadata, message.client_id);
                 }
-            }
+            };
         }
 
         self.log_info(&format!(
@@ -81,7 +94,7 @@ impl Server {
 
         for (file_metadata, file_status) in &message.updated_files {
             match file_metadata {
-                FileMetadata::Audio(song_metadata) => {
+                FileMetadata::Song(song_metadata) => {
                     if let Err(msg) = Self::check_hash(song_metadata.id, song_metadata) {
                         self.log_error(&msg);
                     }
@@ -92,15 +105,14 @@ impl Server {
                     }
                 }
                 FileMetadata::Video(video_metadata) => {
-                    // TODO
-                    // if let Err(msg) = Self::check_hash(video_metadata.id, video_metadata) {
-                    //     self.log_error(&msg);
-                    // }
+                    if let Err(msg) = Self::check_hash(video_metadata.id, video_metadata) {
+                        self.log_error(&msg);
+                    }
 
-                    // match file_status {
-                    //     FileStatus::New => self.add_new_video(video_metadata, message.client_id),
-                    //     FileStatus::Deleted => self.remove_existing_video(video_metadata.id),
-                    // }
+                    match file_status {
+                        FileStatus::New => self.add_new_video(video_metadata, message.client_id),
+                        FileStatus::Deleted => self.remove_existing_video(video_metadata.id),
+                    }
                 }
             }
         }
@@ -112,7 +124,7 @@ impl Server {
         let client_type = self.database.get_client_type(message.client_id);
 
         let response_file_list = match client_type {
-            Ok(ClientType::Audio) => {
+            Ok(ClientType::Song) => {
                 let songs = self.database.get_all_songs_metadata();
                 if let Err(msg) = songs {
                     self.log_error(&msg);
@@ -122,7 +134,7 @@ impl Server {
                     songs
                         .unwrap()
                         .iter()
-                        .map(|song| FileMetadata::Audio(song.clone()))
+                        .map(|song| FileMetadata::Song(song.clone()))
                         .collect(),
                 )
             }
@@ -181,7 +193,7 @@ impl Server {
         let client_type = self.database.get_client_type(message.client_id);
 
         let file_peers = match client_type {
-            Ok(ClientType::Audio) => {
+            Ok(ClientType::Song) => {
                 // Retrieve the requested file
                 let song = self.database.get_song_entry(message.file_hash);
                 if let Err(msg) = song {
@@ -274,25 +286,17 @@ impl Server {
             return;
         };
 
-        match client_type {
-            Some(ClientType::Audio) => {
-                if let Err(msg) = self.database.remove_peer_from_songs(message.client_id) {
-                    self.log_error(&msg);
-                }
-            }
-            Some(ClientType::Video) => {
-                // TODO
-                // if let Err(msg) = self.database.remove_peer_from_videos(message.client_id) {
-                //     self.log_error(&msg);
-                // }
-            }
-            None => {
-                self.log_error(&format!(
-                    "Remove client returned with None. No [CLIENT-{}] removed.",
-                    message.client_id
-                ));
-                return;
-            }
+        let res = match client_type {
+            Some(ClientType::Song) => self.database.remove_peer_from_songs(message.client_id),
+            Some(ClientType::Video) => self.database.remove_peer_from_videos(message.client_id),
+            None => Err(format!(
+                "Remove client returned with None. No [CLIENT-{}] removed.",
+                message.client_id
+            )),
+        };
+
+        if let Err(msg) = res {
+            self.log_error(&msg);
         }
 
         self.log_info(&format!(

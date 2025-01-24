@@ -113,6 +113,10 @@ impl Server {
 
         for packet in packets {
             let packet_str = get_packet_type(&packet.pack_type);
+            // IF PACKET IS ACK, NACK OR FLOOD RESPONSE ADD TRY CONTROLLERSHORTCUT
+            if packet_str == "Ack" || packet_str == "Nack" || packet_str == "Flood response" {
+                // TODO Send Ack Nack Flood response to SC
+            }
             if let Err(err) = send_packet(&sender, packet) {
                 return Err(format!(
                     "Failed to send packet to [DRONE-{}].\nPacket: {}\n Error: {}",

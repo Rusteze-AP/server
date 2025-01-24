@@ -1,4 +1,4 @@
-mod audio_video_handlers;
+mod chunk_req_handlers;
 mod tracker_handlers;
 
 use super::Server;
@@ -28,7 +28,7 @@ impl Server {
                 self.unsubscribe_client(msg);
             }
             MessageType::ChunkRequest(msg) => {
-                self.handle_req_video(msg);
+                self.handle_chunk_request(msg);
             }
             _ => {
                 self.log_error(&format!("Unexpected message type received: {:#?}", message));

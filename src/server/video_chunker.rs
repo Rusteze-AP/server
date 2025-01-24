@@ -1,38 +1,34 @@
-use std::io::{self, Read, Seek, SeekFrom};
-use std::{fs::File, path::Path};
-
 use bytes::{Bytes, BytesMut};
+use std::io::{self, Cursor, Read};
 
 pub struct VideoChunker {
-    file: File,
+    data: Cursor<Vec<u8>>,
     chunk_size: usize,
     position: u64,
-    file_size: u64,
+    data_size: u64,
 }
 
 impl VideoChunker {
-    pub fn new(path: impl AsRef<Path>, chunk_size: usize) -> io::Result<Self> {
-        let file = File::open(path)?;
-        let file_size = file.metadata()?.len();
-
-        Ok(VideoChunker {
-            file,
+    pub fn new(video_data: Vec<u8>, chunk_size: usize) -> Self {
+        let data_size = video_data.len() as u64;
+        VideoChunker {
+            data: Cursor::new(video_data),
             chunk_size,
             position: 0,
-            file_size,
-        })
+            data_size,
+        }
     }
 
     pub fn next_chunk(&mut self) -> io::Result<Option<Bytes>> {
-        if self.position >= self.file_size {
+        if self.position >= self.data_size {
             return Ok(None);
         }
 
         let mut buffer = BytesMut::with_capacity(self.chunk_size);
         buffer.resize(self.chunk_size, 0);
 
-        self.file.seek(SeekFrom::Start(self.position))?;
-        let bytes_read = self.file.read(&mut buffer)?;
+        self.data.set_position(self.position);
+        let bytes_read = self.data.read(&mut buffer)?;
 
         if bytes_read == 0 {
             return Ok(None);
@@ -44,10 +40,9 @@ impl VideoChunker {
         Ok(Some(buffer.freeze()))
     }
 
-    pub fn reset(&mut self) -> io::Result<()> {
+    pub fn reset(&mut self) {
         self.position = 0;
-        self.file.seek(SeekFrom::Start(0))?;
-        Ok(())
+        self.data.set_position(0);
     }
 }
 
@@ -62,18 +57,14 @@ impl Iterator for ChunkIterator {
         if let Ok(Some(chunk)) = self.chunker.next_chunk() {
             Some(chunk)
         } else {
-            let _ = self.chunker.reset();
+            self.chunker.reset();
             None
         }
     }
 }
 
-pub(crate) fn get_video_chunks(file_hash: u16) -> impl Iterator<Item = Bytes> {
-    // TODO get path from database using `file_hash`
-
-    let path = "../client/static/videos/dancing_pirate.mp4";
+pub fn get_video_chunks(video_data: Vec<u8>) -> impl Iterator<Item = Bytes> {
     // Create the chunker with a 1MB chunk size
-    let chunker = VideoChunker::new(path, 1024 * 1024).expect("Failed to create video chunker");
-
+    let chunker = VideoChunker::new(video_data, 1024 * 1024);
     ChunkIterator { chunker }
 }
