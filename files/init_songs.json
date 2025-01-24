@@ -1,0 +1,13 @@
+{
+    "songs": [
+      {
+        "id": 0,
+        "title": "The Emptiness Machine",
+        "artist": "Linkin Park",
+        "album": "From Zero",
+        "duration": 200,
+        "image_url": "https://upload.wikimedia.org/wikipedia/en/9/90/Linkin_Park_-_From_Zero.png",
+        "is_local": true
+      }
+    ]
+}

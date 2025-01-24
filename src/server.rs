@@ -16,18 +16,6 @@ use wg_internal::controller::{DroneCommand, DroneEvent};
 use wg_internal::network::NodeId;
 use wg_internal::packet::{Fragment, Packet};
 
-// #[derive(Debug, Clone)]
-// pub struct ClientInfo {
-//     pub client_type: ClientType,         // "audio" or "video"
-//     pub shared_files: HashSet<FileHash>, // Files shared by this client
-// }
-
-// #[derive(Debug, Clone)]
-// pub struct FileEntry {
-//     pub file_metadata: FileMetadata,
-//     pub peers: HashSet<NodeId>, // List of clients sharing the file
-// }
-
 pub struct Server {
     id: NodeId,
     controller_send: Sender<DroneEvent>,
@@ -42,8 +30,6 @@ pub struct Server {
     packets_history: HashMap<(u64, SessionIdT), Packet>, // (fragment_index, session_id) -> Packet
     // Storage data structures
     database: Database,
-    // clients: HashMap<NodeId, ClientInfo>,
-    // files: HashMap<FileHash, FileEntry>,
     // Network graph
     routing_handler: RoutingHandler,
     flood_id: u64,
@@ -70,9 +56,7 @@ impl Server {
             packet_forge: PacketForge::new(),
             packets_map: HashMap::new(),
             packets_history: HashMap::new(),
-            database: Database::new("server_database"),
-            // clients: HashMap::new(),
-            // files: HashMap::new(),
+            database: Database::new("server_database", id),
             routing_handler: RoutingHandler::new(),
             flood_id: 0,
             logger: Logger::new(LogLevel::None as u8, false, "Server".to_string()),
@@ -84,9 +68,19 @@ impl Server {
         self.id
     }
 
-    pub fn run(&mut self) {
+    pub fn run(&mut self, db_path: &str) {
         // At start perform the first flood_request
         self.init_flood_request();
+
+        // Init database
+        let res = self
+            .database
+            .init(db_path, Some("init_songs.json"), Some("init_videos.json"));
+
+        if let Err(msg) = res {
+            self.log_error(&msg);
+            return;
+        }
 
         loop {
             if self.terminated {

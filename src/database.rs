@@ -1,16 +1,18 @@
 mod getters;
-mod inserts;
+mod insert_clients;
+mod insert_songs;
+mod insert_videos;
 
 use serde::{Deserialize, Serialize};
 use sled::{self, Tree};
 use std::{collections::HashSet, fs, process};
 use wg_internal::network::NodeId;
 
-use packet_forge::{ClientType, FileHash, SongMetadata};
+use packet_forge::{ClientType, FileHash, Metadata};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ClientInfo {
-    pub client_type: ClientType,         // "audio" or "video"
+    pub client_type: ClientType,         // "songs" or "video"
     pub shared_files: HashSet<FileHash>, // Files shared by this client
 }
 
@@ -25,6 +27,7 @@ pub struct Database {
     video_tree: Tree,
     songs_tree: Tree,
     clients_tree: Tree,
+    server_id: NodeId,
 }
 
 /// Build a key: prefix:id
@@ -35,7 +38,7 @@ pub(crate) fn construct_payload_key(prefix: &str, id: u16) -> Vec<u8> {
 
 impl Database {
     /// Creates or opens a database at the specified path.
-    pub fn new(database: &str) -> Self {
+    pub fn new(database: &str, server_id: NodeId) -> Self {
         let db = sled::open(database).unwrap_or_else(|e| {
             eprintln!("Error opening database: {}", e);
             process::exit(1); // Exit the program with an error code
@@ -50,7 +53,7 @@ impl Database {
         };
 
         let video_tree = open_tree("video");
-        let songs_tree = open_tree("audio");
+        let songs_tree = open_tree("songs");
         let clients_tree = open_tree("clients");
 
         Database {
@@ -58,6 +61,7 @@ impl Database {
             video_tree,
             songs_tree,
             clients_tree,
+            server_id,
         }
     }
 
@@ -71,35 +75,20 @@ impl Database {
         Ok(())
     }
 
-    /// Find a specific file by name in the given directory
-    fn find_specific_file(&self, local_path: &str, file_name: &str) -> Result<String, String> {
-        let dir_entries = fs::read_dir(local_path)
-            .map_err(|e| format!("Error reading directory {}: {}", local_path, e))?;
-
-        for entry in dir_entries {
-            let entry = entry.map_err(|e| format!("Error reading directory entry: {}", e))?;
-            let path = entry.path();
-            if path.is_file() && path.file_name().and_then(|n| n.to_str()) == Some(file_name) {
-                return Ok(path.to_string_lossy().into_owned());
-            }
-        }
-
-        Err(format!(
-            "File {} not found in directory {}",
-            file_name, local_path
-        ))
-    }
-
-    fn load_json_metadata(&self, json_file_path: &str) -> Result<Vec<SongMetadata>, String> {
+    fn load_json_metadata<T: Metadata>(
+        &self,
+        json_file_path: &str,
+        json_array: &str,
+    ) -> Result<Vec<T>, String> {
         let file_content = fs::read_to_string(json_file_path)
             .map_err(|e| format!("Error reading file {}: {}", json_file_path, e))?;
 
         let json_data: serde_json::Value = serde_json::from_str(&file_content)
             .map_err(|e| format!("Error parsing JSON: {}", e))?;
 
-        let songs_array = json_data["audio"]
+        let songs_array = json_data[json_array]
             .as_array()
-            .ok_or_else(|| "Invalid JSON: 'audio' is not an array".to_string())?;
+            .ok_or_else(|| format!("Invalid JSON: '{json_array}' is not an array"))?;
 
         songs_array
             .iter()
@@ -112,22 +101,30 @@ impl Database {
 
     /// Initializes the database:
     /// - clears existing entries
-    /// - checks for data from local files (audio and video).
+    /// - checks for data from local files (songs and video).
     /// ### Arguments
     /// - `local_path`: the folder containing the two JSON files
-    /// - `audio_name`: the name of the file with the audio array (even empty). It must contain the extension (*.json)
-    /// - `video_name`: the name of the file with the video array (even empty). It must contain the extension (*.json)
-    pub fn init(&self, local_path: &str, audio_name: &str, video_name: &str) -> Result<(), String> {
+    /// - `file_songs_name`: the name of the file with the song array. It must contain the extension (*.json)
+    /// - `file_video_name`: the name of the file with the video array. It must contain the extension (*.json)
+    pub fn init(
+        &self,
+        local_path: &str,
+        file_songs_name: Option<&str>,
+        file_video_name: Option<&str>,
+    ) -> Result<(), String> {
         self.clear_database()?;
 
-        let songs_metadata_path = self.find_specific_file(local_path, audio_name)?;
-        // let videos_metadata_path = self.find_specific_file(local_path, video_name)?;
+        if let Some(file_name) = file_songs_name {
+            let songs_metadata_path = local_path.to_string() + "/" + file_name;
+            let songs_array = self.load_json_metadata(&songs_metadata_path, "songs")?;
+            self.insert_songs_from_vec(local_path, &songs_array)?;
+        }
 
-        let songs_array = self.load_json_metadata(&songs_metadata_path)?;
-        // let videos_array = self.load_json_metadata(&videos_metadata_path)?;
-
-        self.insert_songs_from_vec(local_path, &songs_array)?;
-        // self.insert_videos_from_vec(local_path, &videos_array)?;
+        if let Some(file_name) = file_video_name {
+            let videos_metadata_path = local_path.to_string() + "/" + file_name;
+            let videos_array = self.load_json_metadata(&videos_metadata_path, "videos")?;
+            self.insert_videos_from_vec(local_path, &videos_array)?;
+        }
 
         Ok(())
     }

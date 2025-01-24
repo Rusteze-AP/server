@@ -1,0 +1,12 @@
+{
+    "videos": [
+      {
+        "id": 0,
+        "title": "Quack",
+        "description": "Duck quacking",
+        "duration": 0,
+        "mime_type": "mime",
+        "created_at": "12:22"
+      }
+    ]
+}
