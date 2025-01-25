@@ -166,7 +166,7 @@ impl Server {
         // Disassemble ResponseFileList into Packets
         let packets = match self
             .packet_forge
-            .disassemble(response_file_list.clone(), srh.clone())
+            .disassemble(response_file_list.clone(), &srh)
         {
             Ok(packets) => packets,
             Err(msg) => {
@@ -242,10 +242,7 @@ impl Server {
         };
 
         // Disassemble ResponsePeerList into Packets
-        let packets = match self
-            .packet_forge
-            .disassemble(file_list.clone(), srh.clone())
-        {
+        let packets = match self.packet_forge.disassemble(file_list.clone(), &srh) {
             Ok(packets) => packets,
             Err(msg) => {
                 self.log_error("Error disassembling ResponsePeerList message! (log_info to see more information)");

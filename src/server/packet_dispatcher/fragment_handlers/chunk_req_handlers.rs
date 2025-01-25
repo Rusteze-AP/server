@@ -44,10 +44,7 @@ impl Server {
             let chunk_res = ChunkResponse::new(message.file_hash, chunk_index, chunk.clone());
 
             // Disassemble ChunkResponse into Packets
-            let packets = match self
-                .packet_forge
-                .disassemble(chunk_res.clone(), srh.clone())
-            {
+            let packets = match self.packet_forge.disassemble(chunk_res.clone(), &srh) {
                 Ok(packets) => packets,
                 Err(msg) => {
                     return Err(format!(
