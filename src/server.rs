@@ -56,7 +56,7 @@ impl Server {
             packet_forge: PacketForge::new(),
             packets_map: HashMap::new(),
             packets_history: HashMap::new(),
-            database: Database::new("database_server", id),
+            database: Database::new(&format!("db/server-{}", id), id),
             routing_handler: RoutingHandler::new(),
             flood_id: 0,
             logger: Logger::new(LogLevel::None as u8, false, "Server".to_string()),
