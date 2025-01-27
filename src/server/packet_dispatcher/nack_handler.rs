@@ -15,6 +15,8 @@ impl Server {
 
         // Retrieve new best path from server to client otherwise return
         let Some(srh) = self.get_path(self.id, dest) else {
+            self.logger
+                .log_error("An error occurred: failed to get routing path");
             return;
         };
 
