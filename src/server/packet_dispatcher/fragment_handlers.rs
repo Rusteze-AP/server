@@ -43,13 +43,16 @@ impl Server {
 
         // Save fragment
         let total_fragments = frag.total_n_fragments;
-        self.packets_map.entry(key).or_default().push(frag.clone());
+        self.recv_fragments_map
+            .entry(key)
+            .or_default()
+            .push(frag.clone());
 
         // Send Ack back to the Client
         self.send_ack(packet, frag.fragment_index);
 
         // If all fragments are received, assemble the message
-        let fragments = self.packets_map.get(&key).unwrap();
+        let fragments = self.recv_fragments_map.get(&key).unwrap();
         if fragments.len() as u64 == total_fragments {
             let assembled = match self.packet_forge.assemble_dynamic(fragments.clone()) {
                 Ok(message) => message,

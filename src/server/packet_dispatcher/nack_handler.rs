@@ -39,7 +39,7 @@ impl Server {
     pub(crate) fn nack_handler(&mut self, message: &Nack, session_id: SessionIdT) {
         // Retrieve the packet that generated the nack
         let Some(mut packet) = self
-            .packets_history
+            .sent_fragments_history
             .get(&(message.fragment_index, session_id))
             .cloned()
         else {

@@ -45,7 +45,7 @@ impl Server {
             };
 
             let key = (fragment.fragment_index, p.session_id);
-            self.packets_history.insert(key, p.clone());
+            self.sent_fragments_history.insert(key, p.clone());
         }
     }
 

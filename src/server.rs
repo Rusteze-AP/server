@@ -8,10 +8,9 @@ use crate::database::Database;
 
 use crossbeam::channel::{select_biased, Receiver, Sender};
 use logger::{LogLevel, Logger};
-use packet_forge::{ClientType, FileHash, Metadata, PacketForge, SessionIdT};
+use packet_forge::{PacketForge, SessionIdT};
 use routing_handler::RoutingHandler;
-use std::collections::{HashMap, HashSet};
-use std::fmt::Debug;
+use std::collections::HashMap;
 use wg_internal::controller::{DroneCommand, DroneEvent};
 use wg_internal::network::NodeId;
 use wg_internal::packet::{Fragment, Packet};
@@ -25,9 +24,9 @@ pub struct Server {
     terminated: bool,
     // Handle incoming packages
     packet_forge: PacketForge,
-    packets_map: HashMap<(NodeId, SessionIdT), Vec<Fragment>>, // (client_id, session_id) -> fragment
+    recv_fragments_map: HashMap<(NodeId, SessionIdT), Vec<Fragment>>, // (client_id, session_id) -> fragment --- *Keep track of the received fragments*
     // Handle outgoing packets
-    packets_history: HashMap<(u64, SessionIdT), Packet>, // (fragment_index, session_id) -> Packet
+    sent_fragments_history: HashMap<(u64, SessionIdT), Packet>, // (fragment_index, session_id) -> Packet(Fragment) --- *Save the sent fragments*
     // Storage data structures
     database: Database,
     // Network graph
@@ -54,8 +53,8 @@ impl Server {
             packet_send: senders,
             terminated: false,
             packet_forge: PacketForge::new(),
-            packets_map: HashMap::new(),
-            packets_history: HashMap::new(),
+            recv_fragments_map: HashMap::new(),
+            sent_fragments_history: HashMap::new(),
             database: Database::new(&format!("db/server-{id}"), id),
             routing_handler: RoutingHandler::new(),
             flood_id: 0,
