@@ -10,7 +10,7 @@ use crossbeam::channel::{select_biased, Receiver, Sender};
 use logger::{LogLevel, Logger};
 use packet_forge::{PacketForge, SessionIdT};
 use routing_handler::RoutingHandler;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use wg_internal::controller::{DroneCommand, DroneEvent};
 use wg_internal::network::NodeId;
 use wg_internal::packet::{Fragment, Packet};
@@ -31,7 +31,8 @@ pub struct Server {
     database: Database,
     // Network graph
     routing_handler: RoutingHandler,
-    flood_id: u64,
+    curr_flood_id: u64,
+    used_flood_id: HashSet<u64>,
     // Logger
     logger: Logger,
 }
@@ -57,7 +58,8 @@ impl Server {
             sent_fragments_history: HashMap::new(),
             database: Database::new(&format!("db/server-{id}"), id),
             routing_handler: RoutingHandler::new(),
-            flood_id: 0,
+            curr_flood_id: 0,
+            used_flood_id: HashSet::new(),
             logger: Logger::new(LogLevel::None as u8, false, format!("SERVER-{id}")),
         }
     }

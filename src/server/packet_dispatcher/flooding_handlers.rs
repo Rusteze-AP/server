@@ -1,4 +1,6 @@
 use std::vec;
+use rand::{random, Rng};
+
 
 use super::Server;
 
@@ -10,9 +12,17 @@ use crate::packet_send::{get_sender, sc_send_packet, send_packet};
 use crate::utils::get_packet_type;
 
 impl Server {
-    pub(crate) fn get_flood_id(&mut self) -> u64 {
-        self.flood_id += 1;
-        self.flood_id
+    fn get_flood_id(&mut self) -> u64 {
+        let mut rng = rand::rng();
+        
+        // Generate a random u64
+        let mut random_number: u64 = rng.random();
+        while !self.used_flood_id.insert(random_number) {
+            random_number = rng.random();
+        }
+
+        self.curr_flood_id = random_number;
+        self.curr_flood_id
     }
 
     pub(crate) fn init_flood_request(&mut self) {
