@@ -2,7 +2,8 @@ use crate::server::video_chunker::get_video_chunks;
 
 use super::Server;
 
-use packet_forge::{ChunkRequest, ChunkResponse, ClientType};
+use bytes::Bytes;
+use packet_forge::{ChunkRequest, ChunkResponse, ClientType, Index};
 
 impl Server {
     pub(crate) fn handle_chunk_request(&mut self, message: &ChunkRequest) {
@@ -20,8 +21,46 @@ impl Server {
     }
 
     // TODO Implement handling Audio messages for server
+    /// Get the requested song data from the database and sends its chunk to the client
     fn handle_song_req(&mut self, message: &ChunkRequest) -> Result<(), String> {
-        todo!()
+        // For each index in ChunkRequest send ChunkResponse
+        match &message.chunk_index {
+            Index::Indexes(vec) => {
+                for chunk_index in vec {
+                    // Get segment from db
+                    let prefix = &format!("ts{chunk_index}");
+                    let segment = self.database.get_song_payload(prefix, message.file_hash)?;
+
+                    // Build ChunkResponse
+                    let chunk_data = Bytes::from(segment);
+                    let chunk_res = ChunkResponse::new(message.file_hash, *chunk_index, chunk_data);
+
+                    // Get routing path
+                    let Some(srh) = self.get_path(self.id, message.client_id) else {
+                        return Err("An error occurred: failed to get routing path".to_string());
+                    };
+                    let next_hop = srh.hops[srh.hop_index];
+
+                    // Disassemble ChunkResponse into Packets
+                    let packets = match self.packet_forge.disassemble(chunk_res.clone(), &srh) {
+                        Ok(packets) => packets,
+                        Err(msg) => {
+                            return Err(format!(
+                                "{:?}\n Error while disassembling: {}",
+                                chunk_res, msg
+                            ));
+                        }
+                    };
+
+                    self.send_save_packets(&packets, next_hop)?;
+
+                    self.logger
+                        .log_info(&format!("Correctly forwarded: {:?}", chunk_res));
+                }
+                Ok(())
+            }
+            _ => Err("ChunkRequest All case not handled!".to_string()),
+        }
     }
 
     /// Get the requested video data from the database and sends its chunk to the client
@@ -33,7 +72,7 @@ impl Server {
         let video_chunks = get_video_chunks(video_data);
 
         let Some(srh) = self.get_path(self.id, message.client_id) else {
-            return Err("An error occurred: failed to get path".to_string());
+            return Err("An error occurred: failed to get routing path".to_string());
         };
         let next_hop = srh.hops[srh.hop_index];
 

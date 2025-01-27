@@ -64,6 +64,7 @@ impl Server {
                     node, packet
                 ));
                 // Start new flooding
+                // TODO change euristic
                 self.init_flood_request();
                 // Retransmit packet
                 self.retransmit_packet(&mut packet, message.fragment_index, session_id);

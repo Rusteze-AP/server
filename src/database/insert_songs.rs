@@ -68,7 +68,7 @@ impl Database {
 
                     if path.extension().and_then(|ext| ext.to_str()) == Some("m3u8") {
                         println!("playlist: {}", path.display());
-                        self.insert_song_payload("playlist", song_id, entry_content)?;
+                        self.insert_song_payload("ts0", song_id, entry_content)?;
                     } else if path.extension().and_then(|ext| ext.to_str()) == Some("ts") {
                         let segment = path
                             .file_stem()
