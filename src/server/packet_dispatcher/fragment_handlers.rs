@@ -9,8 +9,7 @@ use wg_internal::packet::{Fragment, Packet};
 impl Server {
     /// Call the correct function for the received `MessageType`
     fn message_handler(&mut self, message: &MessageType) {
-        self.logger
-            .log_debug(&format!("[SERVER-{}] Processing {:?}", self.id, message));
+        self.logger.log_debug(&format!("Processing {message:?}"));
         match message {
             MessageType::SubscribeClient(msg) => {
                 self.subscribe_client(msg);
@@ -31,7 +30,8 @@ impl Server {
                 self.handle_chunk_request(msg);
             }
             _ => {
-                self.log_error(&format!("Unexpected message type received: {:#?}", message));
+                self.logger
+                    .log_error(&format!("Unexpected message type received: {:#?}", message));
             }
         }
     }
@@ -54,7 +54,7 @@ impl Server {
             let assembled = match self.packet_forge.assemble_dynamic(fragments.clone()) {
                 Ok(message) => message,
                 Err(e) => {
-                    self.log_error(&format!(
+                    self.logger.log_error(&format!(
                         "An error occurred when assembling fragments: {}",
                         e
                     ));

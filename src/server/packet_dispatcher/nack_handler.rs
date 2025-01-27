@@ -23,11 +23,11 @@ impl Server {
         packet.routing_header = srh;
 
         if let Err(msg) = self.send_packets_vec(&[packet.clone()], next_hop) {
-            self.log_error(&msg);
+            self.logger.log_error(&msg);
             return;
         }
 
-        self.log_info(&format!(
+        self.logger.log_info(&format!(
             "Successfully re-sent packet [ ({}, {}) ]",
             fragment_index, session_id
         ));
@@ -41,7 +41,7 @@ impl Server {
             .get(&(message.fragment_index, session_id))
             .cloned()
         else {
-            self.log_error(&format!(
+            self.logger.log_error(&format!(
                 "Failed to retrieve packet with [ ({}, {}) ] key from packet history",
                 message.fragment_index, session_id
             ));
@@ -53,10 +53,11 @@ impl Server {
                 self.retransmit_packet(&mut packet, message.fragment_index, session_id);
             }
             NackType::DestinationIsDrone => {
-                self.log_warn(&format!("Received DestinationIsDrone for {:?} ", packet));
+                self.logger
+                    .log_warn(&format!("Received DestinationIsDrone for {:?} ", packet));
             }
             NackType::ErrorInRouting(node) => {
-                self.log_warn(&format!(
+                self.logger.log_warn(&format!(
                     "Received ErrorInRouting at [NODE-{}] for {}",
                     node, packet
                 ));
@@ -66,7 +67,7 @@ impl Server {
                 self.retransmit_packet(&mut packet, message.fragment_index, session_id);
             }
             NackType::UnexpectedRecipient(node) => {
-                self.log_warn(&format!(
+                self.logger.log_warn(&format!(
                     "Received UnexpectedRecipient at [NODE-{}] for {}",
                     node, packet
                 ));

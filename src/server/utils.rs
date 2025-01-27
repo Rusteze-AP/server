@@ -14,26 +14,6 @@ use wg_internal::{
 };
 
 impl Server {
-    pub(crate) fn log_error(&self, msg: &str) {
-        self.logger
-            .log_error(&format!("[SERVER-{}] {}", self.id, msg));
-    }
-
-    pub(crate) fn log_info(&self, msg: &str) {
-        self.logger
-            .log_info(&format!("[SERVER-{}] {}", self.id, msg));
-    }
-
-    pub(crate) fn log_debug(&self, msg: &str) {
-        self.logger
-            .log_debug(&format!("[SERVER-{}] {}", self.id, msg));
-    }
-
-    pub(crate) fn log_warn(&self, msg: &str) {
-        self.logger
-            .log_warn(&format!("[SERVER-{}] {}", self.id, msg));
-    }
-
     /// Check if the received `file_hash` is correct.
     /// ### Error
     /// Log the two mismatched hash
@@ -57,7 +37,7 @@ impl Server {
     pub(crate) fn insert_packet_history(&mut self, packets: &[Packet]) {
         for p in packets {
             let PacketType::MsgFragment(fragment) = &p.pack_type else {
-                self.log_error(&format!(
+                self.logger.log_error(&format!(
                     "Found {:?} while saving Fragments to packet_history! Ignoring.",
                     p.pack_type
                 ));
@@ -74,7 +54,8 @@ impl Server {
         if let Some(srh) = self.routing_handler.best_path(from, to) {
             Some(srh)
         } else {
-            self.log_error(&format!("No path found from {} to {}!", self.id, to));
+            self.logger
+                .log_error(&format!("No path found from {} to {}!", self.id, to));
             None
         }
     }
@@ -85,14 +66,14 @@ impl Server {
             &self.controller_send,
             &DroneEvent::PacketSent(packet.clone()),
         ) {
-            self.log_error(&format!(
+            self.logger.log_error(&format!(
                 "[{}] - Packet event forward: {}",
                 packet_str.to_ascii_uppercase(),
                 err
             ));
             return;
         }
-        self.log_debug(&format!(
+        self.logger.log_debug(&format!(
             "[{}] - Packet event sent successfully",
             packet_str.to_ascii_uppercase()
         ));
@@ -132,7 +113,7 @@ impl Server {
     pub(crate) fn send_ack(&mut self, packet: &Packet, fragment_index: u64) {
         let source_routing_header = packet.routing_header.get_reversed();
         if source_routing_header.hop_index != 1 {
-            self.log_error(&format!(
+            self.logger.log_error(&format!(
                 "Unable to reverse source routing header. \n Hops: {} \n Hop index: {}",
                 packet.routing_header, packet.routing_header.hop_index
             ));
@@ -142,23 +123,24 @@ impl Server {
         let ack = Packet::new_ack(source_routing_header, packet.session_id, fragment_index);
 
         if let Err(msg) = self.send_packets_vec(&[ack], next_hop) {
-            self.log_error(&msg);
-            self.log_debug(&format!("[ACK] Trying to use SC shortcut..."));
+            self.logger.log_error(&msg);
+            self.logger
+                .log_debug(&format!("[ACK] Trying to use SC shortcut..."));
 
             // Send to SC
             if let Err(msg) = sc_send_packet(
                 &self.controller_send,
                 &DroneEvent::ControllerShortcut(packet.clone()),
             ) {
-                self.log_error(&format!("[ACK] - {}", msg));
-                self.log_error(&format!(
+                self.logger.log_error(&format!("[ACK] - {}", msg));
+                self.logger.log_error(&format!(
                     "[ACK] - Unable to forward packet to neither next hop nor SC. \n Packet: {}",
                     packet
                 ));
                 return;
             }
 
-            self.log_debug(&format!(
+            self.logger.log_debug(&format!(
                 "[ACK] - Successfully sent flood response through SC. Packet: {}",
                 packet
             ));

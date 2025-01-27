@@ -6,12 +6,13 @@ impl Server {
     /// Pop the corresponding fragment from `packet_history`
     pub(crate) fn ack_handler(&mut self, fragment_index: u64, session_id: SessionIdT) {
         let Some(entry) = self.packets_history.remove(&(fragment_index, session_id)) else {
-            self.log_error(&format!(
+            self.logger.log_error(&format!(
                 "Failed to remove [ ({}, {}) ] key from packet history",
                 fragment_index, session_id
             ));
             return;
         };
-        self.log_info(&format!("Packet history updated, removed: {:?}", entry));
+        self.logger
+            .log_info(&format!("Packet history updated, removed: {:?}", entry));
     }
 }

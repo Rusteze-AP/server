@@ -14,7 +14,7 @@ pub fn check_packet_dest(
         true
     } else {
         logger.log_warn(&format!(
-            "[SERVER-{node_id}] Received a packet with destination: {routing_header:?}",
+            "Received a packet with destination: {routing_header:?}",
         ));
         false
     }

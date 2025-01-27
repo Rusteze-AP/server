@@ -28,7 +28,8 @@ impl Server {
                 flood_req.clone(),
             );
             if let Err(err) = send_packet(sender, &packet) {
-                self.log_error(&format!("[FLOODING] Sending to [DRONE-{}]: {}", id, err));
+                self.logger
+                    .log_error(&format!("[FLOODING] Sending to [DRONE-{}]: {}", id, err));
             }
             let packet_str = get_packet_type(&packet.pack_type);
             self.event_dispatcher(&packet, &packet_str);
@@ -59,7 +60,7 @@ impl Server {
 
         let sender = sender.unwrap();
         if let Err(err) = send_packet(&sender, packet) {
-            self.log_warn(&format!("[FLOOD RESPONSE] - Failed to forward packet to [DRONE-{}]. \n Error: {} \n Trying to use SC shortcut...", packet.routing_header.current_hop().unwrap(), err));
+            self.logger.log_warn(&format!("[FLOOD RESPONSE] - Failed to forward packet to [DRONE-{}]. \n Error: {} \n Trying to use SC shortcut...", packet.routing_header.current_hop().unwrap(), err));
             // Send to SC
             let res = sc_send_packet(
                 &self.controller_send,
@@ -67,14 +68,15 @@ impl Server {
             );
 
             if let Err(err) = res {
-                self.log_error(&format!("[FLOOD RESPONSE] - {}", err));
+                self.logger
+                    .log_error(&format!("[FLOOD RESPONSE] - {}", err));
                 return Err(format!(
                     "[FLOOD RESPONSE] - Unable to forward packet to neither next hop nor SC. \n Packet: {}",
                     packet
                 ));
             }
 
-            self.log_debug(&format!(
+            self.logger.log_debug(&format!(
                 "[FLOOD RESPONSE] - Successfully sent flood response through SC. Packet: {}",
                 packet
             ));
@@ -89,7 +91,7 @@ impl Server {
         let res = self.send_flood_response(dest, &packet);
 
         if let Err(msg) = res {
-            self.log_error(&msg);
+            self.logger.log_error(&msg);
         }
     }
 }

@@ -9,7 +9,8 @@ impl Server {
         if res.is_none() {
             return Err(format!("[REMOVE SENDER] - Sender with id {} not found", id));
         }
-        self.log_debug(&format!("[REMOVE SENDER] - Sender with id {} removed", id));
+        self.logger
+            .log_debug(&format!("[REMOVE SENDER] - Sender with id {} removed", id));
         Ok(())
     }
 
@@ -21,7 +22,8 @@ impl Server {
                 id
             ));
         }
-        self.log_debug(&format!("[ADD SENDER] - Sender with id {} added", id));
+        self.logger
+            .log_debug(&format!("[ADD SENDER] - Sender with id {} added", id));
         Ok(())
     }
 
@@ -31,7 +33,8 @@ impl Server {
                 DroneCommand::RemoveSender(id) => self.remove_sender(*id),
                 DroneCommand::AddSender(id, sender) => self.add_sender(*id, &sender),
                 DroneCommand::Crash => {
-                    self.log_debug("[SC COMMAND]]Received crash command. Terminating!");
+                    self.logger
+                        .log_debug("[SC COMMAND]]Received crash command. Terminating!");
                     self.terminated = true;
                     Ok(())
                 }
@@ -39,7 +42,7 @@ impl Server {
             };
 
             if let Err(err) = res {
-                self.log_error(&err);
+                self.logger.log_error(&err);
             }
         }
     }

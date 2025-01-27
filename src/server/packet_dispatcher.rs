@@ -13,11 +13,11 @@ impl Server {
     pub(crate) fn packet_dispatcher(&mut self, packet: &Packet) {
         // Check if the packet is for this server
         if !check_packet_dest(&packet.routing_header, self.id, &self.logger) {
-            self.log_info(&format!("Packet: {:?}", packet));
+            self.logger.log_info(&format!("Packet: {:?}", packet));
             return;
         }
 
-        self.log_info(&format!("Received: {:?}", packet));
+        self.logger.log_info(&format!("Received: {:?}", packet));
 
         match &packet.pack_type {
             PacketType::MsgFragment(frag) => {

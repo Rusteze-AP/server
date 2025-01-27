@@ -15,7 +15,7 @@ impl Server {
         };
 
         if let Err(msg) = res {
-            self.log_error(&msg);
+            self.logger.log_error(&msg);
         }
     }
 
@@ -56,7 +56,8 @@ impl Server {
 
             self.send_save_packets(&packets, next_hop)?;
 
-            self.log_info(&format!("Correctly forwarded: {:?}", chunk_res));
+            self.logger
+                .log_info(&format!("Correctly forwarded: {:?}", chunk_res));
         }
         Ok(())
     }

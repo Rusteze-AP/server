@@ -56,10 +56,10 @@ impl Server {
             packet_forge: PacketForge::new(),
             packets_map: HashMap::new(),
             packets_history: HashMap::new(),
-            database: Database::new(&format!("db/server-{}", id), id),
+            database: Database::new(&format!("db/server-{id}"), id),
             routing_handler: RoutingHandler::new(),
             flood_id: 0,
-            logger: Logger::new(LogLevel::None as u8, false, "Server".to_string()),
+            logger: Logger::new(LogLevel::None as u8, false, format!("SERVER-{id}")),
         }
     }
 
@@ -78,7 +78,7 @@ impl Server {
             .init(db_path, Some("init_songs.json"), Some("init_videos.json"));
 
         if let Err(msg) = res {
-            self.log_error(&msg);
+            self.logger.log_error(&msg);
             return;
         }
 
@@ -92,7 +92,7 @@ impl Server {
                     if let Ok(command) = command {
                         self.command_dispatcher(&command);
                     } else {
-                        self.log_error("Error receiving command!");
+                        self.logger.log_error("Error receiving command!");
                         break;
                     }
                 },
@@ -100,7 +100,7 @@ impl Server {
                     if let Ok(packet) = packet {
                         self.packet_dispatcher(&packet);
                     } else {
-                        self.log_error("Error receiving message!");
+                        self.logger.log_error("Error receiving message!");
                         break;
                     }
                 }
