@@ -7,7 +7,7 @@ use super::{construct_payload_key, Database, FileEntry};
 
 impl Database {
     /// Insert a FileEntry for VideoMetaData into the video_tree
-    pub(crate) fn insert_video_file_entry(
+    fn insert_video_file_entry(
         &self,
         mut file_hash: FileHash,
         file_entry: &mut FileEntry<VideoMetaData>,
@@ -26,11 +26,7 @@ impl Database {
     }
 
     /// Inserts video payload into the database.
-    pub(crate) fn insert_video_payload(
-        &self,
-        id: FileHash,
-        payload: Vec<u8>,
-    ) -> Result<(), String> {
+    fn insert_video_payload(&self, id: FileHash, payload: Vec<u8>) -> Result<(), String> {
         let key = construct_payload_key("video", id);
         match self.video_tree.insert(key, payload) {
             Ok(_) => Ok(()),

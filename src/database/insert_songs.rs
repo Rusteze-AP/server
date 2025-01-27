@@ -6,10 +6,8 @@ use wg_internal::network::NodeId;
 use super::{construct_payload_key, Database, FileEntry};
 
 impl Database {
-    /// Insert a FileEntry for SongMetaData into the songs_tree
-    /// ### Checks
-    /// If the entry is already present, it adds the
-    pub(crate) fn insert_song_file_entry(
+    /// Insert a FileEntry for SongMetaData into the `songs_tree``
+    fn insert_song_file_entry(
         &self,
         mut file_hash: FileHash,
         file_entry: &mut FileEntry<SongMetaData>,
@@ -28,8 +26,13 @@ impl Database {
     }
 
     /// Inserts song payload into the database.
-    pub(crate) fn insert_song_payload(&self, id: FileHash, payload: Vec<u8>) -> Result<(), String> {
-        let key = construct_payload_key("song", id);
+    fn insert_song_payload(
+        &self,
+        prefix: &str,
+        id: FileHash,
+        payload: Vec<u8>,
+    ) -> Result<(), String> {
+        let key = construct_payload_key(prefix, id);
         match self.songs_tree.insert(key, payload) {
             Ok(_) => Ok(()),
             Err(e) => Err(format!("Error inserting song payload: {}", e)),
@@ -48,15 +51,44 @@ impl Database {
                 peers: HashSet::from([self.server_id]),
             };
 
-            let song_id = self.insert_song_file_entry(song.id, &mut file_entry)?;
+            let song_id: FileHash = self.insert_song_file_entry(song.id, &mut file_entry)?;
 
             let song_title_parsed = song.title.replace(' ', "").to_lowercase();
-            let mp3_file_path = format!("{}/songs/{}.mp3", local_path, song_title_parsed);
 
-            let mp3_content = fs::read(&mp3_file_path)
-                .map_err(|e| format!("Error reading MP3 file {}: {}", mp3_file_path, e))?;
+            let song_parts = fs::read_dir(format!("{}/songs/{}", local_path, song_title_parsed))
+                .map_err(|e| format!("Error reading directory {}: {}", local_path, e))?;
 
-            self.insert_song_payload(song_id, mp3_content)?;
+            for part in song_parts {
+                let part = part.map_err(|e| format!("Error reading directory part: {}", e))?;
+                let path = part.path();
+                if path.is_file() {
+                    let entry_content = fs::read(&path).map_err(|e| {
+                        format!("Error reading segment file {}: {}", path.display(), e)
+                    })?;
+
+                    if path.extension().and_then(|ext| ext.to_str()) == Some("m3u8") {
+                        println!("playlist: {}", path.display());
+                        self.insert_song_payload("playlist", song_id, entry_content)?;
+                    } else if path.extension().and_then(|ext| ext.to_str()) == Some("ts") {
+                        let segment = path
+                            .file_stem()
+                            .unwrap()
+                            .to_string_lossy()
+                            .to_string()
+                            .replace("segment", "")
+                            .parse::<u16>()
+                            .unwrap()
+                            + 1;
+                        let prefix = &format!("ts{}", segment);
+                        println!("segment: {}", path.display());
+                        println!("segment: {}", segment);
+                        self.insert_song_payload(prefix, song_id, entry_content)?;
+                    }
+                    // CONTINUE SKIP INVALID FILE EXTENSION
+                    // TODO use logger
+                    // return Err("Error: Invalid file extension".to_string());
+                }
+            }
         }
         Ok(())
     }

@@ -27,8 +27,8 @@ impl Database {
     }
 
     /// Retrieves song payload from the database by ID.
-    pub(crate) fn get_song_payload(&self, id: FileHash) -> Result<Vec<u8>, String> {
-        let key = construct_payload_key("song", id);
+    pub(crate) fn get_song_payload(&self, prefix: &str, id: FileHash) -> Result<Vec<u8>, String> {
+        let key = construct_payload_key(prefix, id);
         self.songs_tree
             .get(key)
             .map_err(|e| format!("Error accessing database: {}", e))?
