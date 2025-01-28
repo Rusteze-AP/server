@@ -11,13 +11,22 @@ use wg_internal::packet::{Packet, PacketType};
 impl Server {
     /// Call the correct function for the received `Packet`
     pub(crate) fn packet_dispatcher(&mut self, packet: &Packet) {
-        // Check if the packet is for this server
-        if !check_packet_dest(&packet.routing_header, self.id, &self.logger) {
-            self.logger.log_info(&format!("Packet: {:?}", packet));
+        self.logger.log_info(&format!("Received: {:?}", packet));
+
+        // Handle flood request since SRH is empty
+        if let PacketType::FloodRequest(flood_req) = &packet.pack_type {
+            self.handle_flood_request(flood_req);
             return;
         }
 
-        self.logger.log_info(&format!("Received: {:?}", packet));
+        // Check if the packet is for this server
+        if !check_packet_dest(&packet.routing_header, self.id, &self.logger) {
+            self.logger.log_info(&format!(
+                "Packet with wrong destination, Packet: {:?}",
+                packet
+            ));
+            return;
+        }
 
         match &packet.pack_type {
             PacketType::MsgFragment(frag) => {
@@ -26,14 +35,16 @@ impl Server {
             PacketType::FloodResponse(flood_res) => {
                 self.routing_handler.update_graph(flood_res.clone());
             }
-            PacketType::FloodRequest(flood_req) => {
-                self.handle_flood_request(flood_req);
-            }
             PacketType::Ack(ack) => {
                 self.ack_handler(packet.session_id, ack.fragment_index);
             }
             PacketType::Nack(nack) => {
                 self.nack_handler(nack, packet.session_id);
+            }
+            PacketType::FloodRequest(flood_req) => {
+                self.logger.log_error(&format!(
+                    "Packet reached not handled match case: {flood_req}"
+                ));
             }
         }
     }

@@ -8,7 +8,9 @@ use wg_internal::{controller::DroneEvent, packet::Packet};
 impl Server {
     /// Builds and sends an `Ack` to the `next_hop`. If it fails it tries to use the Simulation Controller
     pub(crate) fn send_ack(&mut self, packet: &Packet, fragment_index: u64) {
-        let source_routing_header = packet.routing_header.get_reversed();
+        let mut source_routing_header = packet.routing_header.get_reversed();
+        source_routing_header.increase_hop_index();
+
         if source_routing_header.hop_index != 1 {
             self.logger.log_error(&format!(
                 "Unable to reverse source routing header. \n Hops: {} \n Hop index: {}",

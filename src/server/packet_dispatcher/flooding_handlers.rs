@@ -45,7 +45,10 @@ impl Server {
         }
     }
 
-    fn build_flood_response(flood_req: &FloodRequest) -> (NodeId, Packet) {
+    fn build_flood_response(&self, flood_req: &FloodRequest) -> (NodeId, Packet) {
+        let mut flood_req = flood_req.clone();
+        flood_req.path_trace.push((self.id, NodeType::Server));
+
         let mut packet = flood_req.generate_response(1); // Note: returns with hop_index = 0;
         packet.routing_header.increase_hop_index();
         let dest = packet.routing_header.current_hop();
@@ -95,7 +98,7 @@ impl Server {
 
     /// Build a flood response for the received flood request
     pub(crate) fn handle_flood_request(&self, message: &FloodRequest) {
-        let (dest, packet) = Self::build_flood_response(message);
+        let (dest, packet) = self.build_flood_response(message);
 
         let res = self.send_flood_response(dest, &packet);
 
