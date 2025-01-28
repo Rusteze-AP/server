@@ -1,6 +1,5 @@
+use rand::Rng;
 use std::vec;
-use rand::{random, Rng};
-
 
 use super::Server;
 
@@ -14,7 +13,7 @@ use crate::utils::get_packet_type;
 impl Server {
     fn get_flood_id(&mut self) -> u64 {
         let mut rng = rand::rng();
-        
+
         // Generate a random u64
         let mut random_number: u64 = rng.random();
         while !self.used_flood_id.insert(random_number) {
