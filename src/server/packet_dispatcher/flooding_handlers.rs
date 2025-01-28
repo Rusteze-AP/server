@@ -25,6 +25,8 @@ impl Server {
     }
 
     pub(crate) fn init_flood_request(&mut self) {
+        self.logger.log_info("Initiating flooding...");
+
         let flood_req = FloodRequest {
             flood_id: self.get_flood_id(),
             initiator_id: self.id,

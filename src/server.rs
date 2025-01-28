@@ -70,9 +70,6 @@ impl Server {
     }
 
     pub fn run(&mut self, db_path: &str) {
-        // At start perform the first flood_request
-        self.init_flood_request();
-
         // Init database
         let res = self
             .database
@@ -82,6 +79,10 @@ impl Server {
             self.logger.log_error(&msg);
             return;
         }
+        self.logger.log_debug("Database successfully initiated!");
+
+        // At start perform the first flood_request
+        self.init_flood_request();
 
         loop {
             if self.terminated {

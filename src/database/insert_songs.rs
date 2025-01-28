@@ -78,8 +78,8 @@ impl Database {
                             .parse::<u16>()
                             .unwrap()
                             + 1;
+
                         let prefix = &format!("ts{}", segment);
-                        
                         self.insert_song_payload(prefix, song_id, entry_content)?;
                     }
                     // CONTINUE SKIP INVALID FILE EXTENSION
