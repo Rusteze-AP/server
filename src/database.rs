@@ -66,12 +66,20 @@ impl Database {
     }
 
     fn clear_database(&self) -> Result<(), String> {
-        self.db
-            .clear()
-            .map_err(|e| format!("Error clearing database: {}", e))?;
-        self.db
-            .flush()
-            .map_err(|e| format!("Error flushing database: {}", e))?;
+        let trees = [
+            &self.db,
+            &self.video_tree,
+            &self.songs_tree,
+            &self.clients_tree,
+        ];
+
+        for tree in trees {
+            tree.clear()
+                .map_err(|e| format!("Error clearing database: {}", e))?;
+            tree.flush()
+                .map_err(|e| format!("Error flushing database: {}", e))?;
+        }
+
         Ok(())
     }
 

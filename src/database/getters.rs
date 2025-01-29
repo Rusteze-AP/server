@@ -48,7 +48,9 @@ impl Database {
 
     /// Retrieves metadata for all songs in the database.
     pub(crate) fn get_all_songs_metadata(&self) -> Result<Vec<SongMetaData>, String> {
-        Ok(self.songs_tree.iter()
+        Ok(self
+            .songs_tree
+            .iter()
             .filter_map(|entry| {
                 if let Ok((key, data)) = entry {
                     if let Ok(key_str) = std::str::from_utf8(&key) {
@@ -56,19 +58,21 @@ impl Database {
                             return None; // Skip entries where key starts with "ts"
                         }
                     }
-    
+
                     // Attempt to deserialize the data
                     return bincode::deserialize::<SongMetaData>(&data).ok();
                 }
-    
+
                 None
             })
             .collect())
     }
-    
+
     /// Retrieves metadata for all videos in the database.
     pub(crate) fn get_all_videos_metadata(&self) -> Result<Vec<VideoMetaData>, String> {
-        Ok(self.video_tree.iter()
+        Ok(self
+            .video_tree
+            .iter()
             .filter_map(|entry| {
                 if let Ok((key, data)) = entry {
                     if let Ok(key_str) = std::str::from_utf8(&key) {
@@ -76,11 +80,11 @@ impl Database {
                             return None; // Skip entries where key starts with "pl"
                         }
                     }
-    
+
                     // Attempt to deserialize the data
                     return bincode::deserialize::<VideoMetaData>(&data).ok();
                 }
-    
+
                 None
             })
             .collect())
