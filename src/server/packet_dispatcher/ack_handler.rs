@@ -59,6 +59,6 @@ impl Server {
             return;
         };
         self.logger
-            .log_info(&format!("Packet history updated, removed: {:?}", entry));
+            .log_debug(&format!("Packet history updated, removed {entry}"));
     }
 }

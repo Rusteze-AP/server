@@ -11,7 +11,7 @@ use wg_internal::packet::{Packet, PacketType};
 impl Server {
     /// Call the correct function for the received `Packet`
     pub(crate) fn packet_dispatcher(&mut self, packet: &Packet) {
-        self.logger.log_info(&format!("Received: {:?}", packet));
+        self.logger.log_info(&format!("Received: {packet}"));
 
         // Handle flood request since SRH is empty
         if let PacketType::FloodRequest(flood_req) = &packet.pack_type {
@@ -36,7 +36,7 @@ impl Server {
                 self.routing_handler.update_graph(flood_res.clone());
             }
             PacketType::Ack(ack) => {
-                self.ack_handler(packet.session_id, ack.fragment_index);
+                self.ack_handler(ack.fragment_index, packet.session_id);
             }
             PacketType::Nack(nack) => {
                 self.nack_handler(nack, packet.session_id);

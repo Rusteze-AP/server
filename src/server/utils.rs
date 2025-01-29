@@ -102,6 +102,11 @@ impl Server {
                     "Failed to send packet to [DRONE-{}].\nPacket: {}\n Error: {}",
                     next_hop, packet, err
                 ));
+            } else {
+                self.logger.log_debug(&format!(
+                    "[{}] - Sent {packet}",
+                    packet_str.to_ascii_uppercase()
+                ));
             }
             self.event_dispatcher(packet, &packet_str);
         }
