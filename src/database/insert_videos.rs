@@ -27,7 +27,7 @@ impl Database {
 
     /// Inserts video payload into the database.
     fn insert_video_payload(&self, id: FileHash, payload: Vec<u8>) -> Result<(), String> {
-        let key = construct_payload_key("video", id);
+        let key = construct_payload_key("pl", id);
         match self.video_tree.insert(key, payload) {
             Ok(_) => Ok(()),
             Err(e) => Err(format!("Error inserting song payload: {}", e)),

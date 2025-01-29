@@ -38,7 +38,7 @@ impl Database {
 
     /// Retrieves video payload from the database by ID.
     pub(crate) fn get_video_payload(&self, id: FileHash) -> Result<Vec<u8>, String> {
-        let key = construct_payload_key("video", id);
+        let key = construct_payload_key("pl", id);
         self.video_tree
             .get(key)
             .map_err(|e| format!("Error accessing database: {}", e))?
@@ -48,32 +48,42 @@ impl Database {
 
     /// Retrieves metadata for all songs in the database.
     pub(crate) fn get_all_songs_metadata(&self) -> Result<Vec<SongMetaData>, String> {
-        self.songs_tree
-            .iter()
+        Ok(self.songs_tree.iter()
             .filter_map(|entry| {
-                match entry {
-                    Ok((key, data)) if key.len() == 2 => {
-                        bincode::deserialize(&data).ok() // Deserialize valid metadata
+                if let Ok((key, data)) = entry {
+                    if let Ok(key_str) = std::str::from_utf8(&key) {
+                        if key_str.starts_with("ts") {
+                            return None; // Skip entries where key starts with "ts"
+                        }
                     }
-                    _ => None, // Skip invalid or payload entries
+    
+                    // Attempt to deserialize the data
+                    return bincode::deserialize::<SongMetaData>(&data).ok();
                 }
+    
+                None
             })
-            .collect()
+            .collect())
     }
-
+    
     /// Retrieves metadata for all videos in the database.
     pub(crate) fn get_all_videos_metadata(&self) -> Result<Vec<VideoMetaData>, String> {
-        self.video_tree
-            .iter()
+        Ok(self.video_tree.iter()
             .filter_map(|entry| {
-                match entry {
-                    Ok((key, data)) if key.len() == 2 => {
-                        bincode::deserialize(&data).ok() // Deserialize valid metadata
+                if let Ok((key, data)) = entry {
+                    if let Ok(key_str) = std::str::from_utf8(&key) {
+                        if key_str.starts_with("pl") {
+                            return None; // Skip entries where key starts with "pl"
+                        }
                     }
-                    _ => None, // Skip invalid or payload entries
+    
+                    // Attempt to deserialize the data
+                    return bincode::deserialize::<VideoMetaData>(&data).ok();
                 }
+    
+                None
             })
-            .collect()
+            .collect())
     }
 
     pub(crate) fn contains_client(&self, id: NodeId) -> bool {
