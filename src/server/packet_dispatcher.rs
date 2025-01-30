@@ -15,7 +15,7 @@ impl Server {
 
         // Handle flood request since SRH is empty
         if let PacketType::FloodRequest(flood_req) = &packet.pack_type {
-            self.handle_flood_request(flood_req);
+            self.handle_flood_request(flood_req, packet.session_id);
             return;
         }
 
