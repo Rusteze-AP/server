@@ -60,7 +60,7 @@ impl Server {
             routing_handler: RoutingHandler::new(),
             curr_flood_id: 0,
             used_flood_id: HashSet::new(),
-            logger: Logger::new(LogLevel::None as u8, false, format!("SERVER-{id}")),
+            logger: Logger::new(LogLevel::All as u8, false, format!("SERVER-{id}")),
         }
     }
 
