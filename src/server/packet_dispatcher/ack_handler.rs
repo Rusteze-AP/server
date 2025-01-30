@@ -40,7 +40,7 @@ impl Server {
             }
 
             self.logger.log_debug(&format!(
-                "[ACK] - Successfully sent flood response through SC. Packet: {}",
+                "[ACK] - Successfully sent ack through SC. Packet: {}",
                 packet
             ));
         }
@@ -53,7 +53,7 @@ impl Server {
             .remove(&(fragment_index, session_id))
         else {
             self.logger.log_error(&format!(
-                "Failed to remove [ ({}, {}) ] key from packet history",
+                "Failed to remove [ ({}, {}) ] key from sent fragments history",
                 fragment_index, session_id
             ));
             return;

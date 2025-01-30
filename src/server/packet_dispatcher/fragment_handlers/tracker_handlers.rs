@@ -9,7 +9,7 @@ impl Server {
             self.logger.log_error(&msg);
         }
         self.logger
-            .log_info(&format!("Added new Song [ {:?} ]", song_metadata));
+            .log_debug(&format!("Added new Song [ {song_metadata:?} ]"));
     }
 
     fn remove_existing_song(&self, song_id: FileHash) {
@@ -17,7 +17,7 @@ impl Server {
             self.logger.log_error(&msg);
         }
         self.logger
-            .log_info(&format!("Removed Song with ID [ {} ]", song_id));
+            .log_debug(&format!("Removed Song with ID [ {song_id} ]"));
     }
 
     fn add_new_video(&self, video_metadata: &VideoMetaData, client_id: NodeId) {
@@ -25,7 +25,7 @@ impl Server {
             self.logger.log_error(&msg);
         }
         self.logger
-            .log_info(&format!("Added new Video [ {:?} ]", video_metadata));
+            .log_debug(&format!("Added new Video [ {video_metadata:?} ]"));
     }
 
     fn remove_existing_video(&self, video_id: FileHash) {
@@ -33,7 +33,7 @@ impl Server {
             self.logger.log_error(&msg);
         }
         self.logger
-            .log_info(&format!("Removed Video with ID [ {} ]", video_id));
+            .log_debug(&format!("Removed Video with ID [ {video_id} ]"));
     }
 
     /// Add client information to the database
@@ -120,7 +120,8 @@ impl Server {
                 }
             }
         }
-        self.logger.log_info(&format!("File list updated!"));
+        self.logger
+            .log_info(&format!("Client-{} file list updated!", message.client_id));
     }
 
     /// Send all the file available to the requesting client
@@ -176,11 +177,9 @@ impl Server {
         {
             Ok(packets) => packets,
             Err(msg) => {
-                self.logger.log_error("Error disassembling ResponseFileList message! (log_info to see more information)");
-                self.logger.log_info(&format!(
-                    "ResponseFileList: {:?}\n Error: {}",
-                    response_file_list, msg
-                ));
+                self.logger.log_error("Error disassembling ResponseFileList message! (log_debug to see more information)");
+                self.logger
+                    .log_debug(&format!("[VERBOSE] {response_file_list:?}\n Error: {msg}",));
                 return;
             }
         };
@@ -254,10 +253,8 @@ impl Server {
             Ok(packets) => packets,
             Err(msg) => {
                 self.logger.log_error("Error disassembling ResponsePeerList message! (log_info to see more information)");
-                self.logger.log_info(&format!(
-                    "ResponsePeerList: {:?}\n Error: {}",
-                    file_list, msg
-                ));
+                self.logger
+                    .log_info(&format!("[VERBOSE] {file_list:?}\n Error: {msg}"));
                 return;
             }
         };
@@ -305,7 +302,7 @@ impl Server {
         }
 
         self.logger.log_info(&format!(
-            "Client {} unsubscribed with success!",
+            "Client-{} unsubscribed with success!",
             message.client_id
         ));
     }

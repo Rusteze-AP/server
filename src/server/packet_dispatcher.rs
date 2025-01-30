@@ -21,10 +21,8 @@ impl Server {
 
         // Check if the packet is for this server
         if !check_packet_dest(&packet.routing_header, self.id, &self.logger) {
-            self.logger.log_info(&format!(
-                "Packet with wrong destination, Packet: {:?}",
-                packet
-            ));
+            self.logger
+                .log_warn(&format!("Packet has wrong destination!"));
             return;
         }
 

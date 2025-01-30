@@ -9,7 +9,7 @@ use wg_internal::packet::{Fragment, Packet};
 impl Server {
     /// Call the correct function for the received `MessageType`
     fn message_handler(&mut self, message: &MessageType) {
-        self.logger.log_debug(&format!("Processing {message:?}"));
+        self.logger.log_info(&format!("Processing {message:?}"));
         match message {
             MessageType::SubscribeClient(msg) => {
                 self.subscribe_client(msg);
@@ -31,7 +31,7 @@ impl Server {
             }
             _ => {
                 self.logger
-                    .log_error(&format!("Unexpected message type received: {:#?}", message));
+                    .log_error(&format!("Unexpected message type received: {message:#?}"));
             }
         }
     }

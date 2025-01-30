@@ -43,22 +43,21 @@ impl Server {
                 let packets = match self.packet_forge.disassemble(chunk_res.clone(), &srh) {
                     Ok(packets) => packets,
                     Err(msg) => {
-                        return Err(format!(
-                            "{:?}\n Error while disassembling: {}",
-                            chunk_res, msg
-                        ));
+                        return Err(format!("{chunk_res:?}\n Error while disassembling: {msg}"));
                     }
                 };
 
                 self.send_save_packets(&packets, next_hop)?;
 
-                self.logger
-                    .log_info(&format!("Correctly forwarded: {:?}", chunk_res));
+                self.logger.log_info(&format!(
+                    "Forwarded ChunkResponse for {} to client-{}",
+                    message.file_hash, message.client_id
+                ));
             }
             return Ok(());
         }
 
-        Err("ChunkRequest All case not handled!".to_string())
+        Err("ChunkRequest for songs does not handle requests for all chunks!".to_string())
     }
 
     /// Get the requested video data from the database and sends its chunk to the client
@@ -93,8 +92,10 @@ impl Server {
 
             self.send_save_packets(&packets, next_hop)?;
 
-            self.logger
-                .log_info(&format!("Correctly forwarded: {:?}", chunk_res));
+            self.logger.log_info(&format!(
+                "Forwarded ChunkResponse for {} to client-{}",
+                message.file_hash, message.client_id
+            ));
         }
         Ok(())
     }

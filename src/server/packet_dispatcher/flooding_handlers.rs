@@ -95,10 +95,12 @@ impl Server {
                 ));
             }
 
-            self.logger.log_debug(&format!(
-                "[FLOOD RESPONSE] - Successfully sent flood response through SC. Packet: {}",
-                packet
+            self.logger.log_info(&format!(
+                "[FLOOD RESPONSE] - Successfully sent flood response through SC: {packet}",
             ));
+        } else {
+            self.logger
+                .log_info(&format!("[FLOOD RESPONSE] Forwarded {packet}"));
         }
         Ok(())
     }

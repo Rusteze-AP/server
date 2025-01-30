@@ -30,8 +30,7 @@ impl Server {
         }
 
         self.logger.log_info(&format!(
-            "Successfully re-sent packet [ ({}, {}) ]",
-            fragment_index, session_id
+            "Successfully re-sent packet [ ({fragment_index}, {session_id}) ]"
         ));
     }
 
@@ -56,12 +55,11 @@ impl Server {
             }
             NackType::DestinationIsDrone => {
                 self.logger
-                    .log_warn(&format!("Received DestinationIsDrone for {:?} ", packet));
+                    .log_warn(&format!("Received DestinationIsDrone for {packet:?} "));
             }
             NackType::ErrorInRouting(node) => {
                 self.logger.log_warn(&format!(
-                    "Received ErrorInRouting at [NODE-{}] for {}",
-                    node, packet
+                    "Received ErrorInRouting at [NODE-{node}] for {packet}"
                 ));
                 // Start new flooding
                 // TODO change euristic
