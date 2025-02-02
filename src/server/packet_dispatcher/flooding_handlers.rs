@@ -1,5 +1,6 @@
 use packet_forge::SessionIdT;
 use rand::Rng;
+use std::time::Instant;
 use std::vec;
 
 use super::Server;
@@ -25,6 +26,9 @@ impl Server {
     }
 
     pub(crate) fn init_flood_request(&mut self) {
+        // Reset flooding countdown
+        self.flood_countdown = Instant::now();
+
         self.logger.log_info("Initiating flooding...");
 
         let flood_req = FloodRequest {

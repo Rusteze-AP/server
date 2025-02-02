@@ -11,6 +11,7 @@ use logger::{LogLevel, Logger};
 use packet_forge::{PacketForge, SessionIdT};
 use routing_handler::RoutingHandler;
 use std::collections::{HashMap, HashSet};
+use std::time::{Duration, Instant};
 use wg_internal::controller::{DroneCommand, DroneEvent};
 use wg_internal::network::NodeId;
 use wg_internal::packet::{Fragment, Packet};
@@ -33,6 +34,7 @@ pub struct Server {
     routing_handler: RoutingHandler,
     curr_flood_id: u64,
     used_flood_id: HashSet<u64>,
+    flood_countdown: Instant, // Initialize timer
     // Logger
     logger: Logger,
 }
@@ -60,6 +62,7 @@ impl Server {
             routing_handler: RoutingHandler::new(),
             curr_flood_id: 0,
             used_flood_id: HashSet::new(),
+            flood_countdown: Instant::now(),
             logger: Logger::new(LogLevel::All as u8, false, format!("SERVER-{id}")),
         }
     }
@@ -87,6 +90,11 @@ impl Server {
         loop {
             if self.terminated {
                 break;
+            }
+
+            // Flood request every 4 minutes
+            if self.flood_countdown.elapsed() >= Duration::from_secs(240) {
+                self.init_flood_request();
             }
 
             select_biased!(

@@ -94,7 +94,7 @@ impl Server {
         for packet in packets {
             let packet_str = get_packet_type(&packet.pack_type).to_uppercase();
             if let Err(err) = send_packet(&sender, packet) {
-                // IF PACKET IS ACK, NACK OR FLOOD RESPONSE ADD TRY CONTROLLERSHORTCUT
+                // If Packet is ack, nack or flood response try controller shortcut
                 if packet_str == "ACK" || packet_str == "NACK" || packet_str == "FLOOD RESPONSE" {
                     self.logger.log_warn(&format!("[{packet_str}] - Failed to forward packet to [DRONE-{next_hop}]. \n Error: {err} \n Trying to use SC shortcut..."));
                     // Send to SC

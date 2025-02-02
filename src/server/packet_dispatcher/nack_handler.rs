@@ -1,3 +1,5 @@
+use std::{thread, time::Duration};
+
 use super::Server;
 
 use packet_forge::SessionIdT;
@@ -67,8 +69,9 @@ impl Server {
                     "[NACK] Received ErrorInRouting at [NODE-{node}] for {packet}"
                 ));
                 // Start new flooding
-                // TODO change euristic
                 self.init_flood_request();
+                // TODO improve heuristic
+                //thread::sleep(Duration::from_secs(4));
                 // Retransmit packet
                 self.retransmit_packet(&mut packet, message.fragment_index, session_id);
             }
