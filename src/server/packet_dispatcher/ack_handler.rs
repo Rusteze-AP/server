@@ -6,8 +6,19 @@ use wg_internal::packet::Packet;
 impl Server {
     /// Builds and sends an `Ack` to the `next_hop`. If it fails it tries to use the Simulation Controller
     pub(crate) fn send_ack(&mut self, packet: &Packet, fragment_index: u64) {
-        let mut source_routing_header = packet.routing_header.get_reversed();
-        source_routing_header.increase_hop_index();
+        // Dest is 0 because the srh has not been reversed yet
+        let dest = packet.routing_header.hops[0];
+
+        let source_routing_header = match self.get_path(self.id, dest) {
+            Some(new_srh) => new_srh,
+            None => {
+                self.logger
+                    .log_error("[RETRANSMIT PACKET] An error occurred: failed to get routing path, using old routing header");
+                let mut srh = packet.routing_header.get_reversed();
+                srh.increase_hop_index();
+                srh
+            }
+        };
 
         if source_routing_header.hop_index != 1 {
             self.logger.log_error(&format!(

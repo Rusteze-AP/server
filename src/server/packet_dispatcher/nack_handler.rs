@@ -15,7 +15,7 @@ impl Server {
 
         let old_srh = packet.routing_header.clone();
 
-        // Retrieve new best path from server to client, otherwise use incoming one
+        // Retrieve new best path from server to client, otherwise use the old_one
         let srh = match self.get_path(self.id, dest) {
             Some(new_srh) => new_srh,
             None => {
