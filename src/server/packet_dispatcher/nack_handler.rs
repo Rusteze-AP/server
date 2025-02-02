@@ -11,8 +11,9 @@ impl Server {
         fragment_index: u64,
         session_id: SessionIdT,
     ) {
-        let dest = packet.routing_header.hops[packet.routing_header.hops.len()];
+        let dest = packet.routing_header.hops[packet.routing_header.hops.len()-1];
 
+        let old_srh = packet.routing_header.clone();
         // Retrieve new best path from server to client otherwise return
         let Some(srh) = self.get_path(self.id, dest) else {
             self.logger
