@@ -1,7 +1,7 @@
 use super::Server;
 
 use packet_forge::*;
-use wg_internal::network::NodeId;
+use wg_internal::network::{NodeId, SourceRoutingHeader};
 
 impl Server {
     fn add_new_song(&self, song_metadata: &SongMetaData, client_id: NodeId) {
@@ -125,7 +125,11 @@ impl Server {
     }
 
     /// Send all the file available to the requesting client
-    pub(crate) fn send_file_list(&mut self, message: &RequestFileList) {
+    pub(crate) fn send_file_list(
+        &mut self,
+        message: &RequestFileList,
+        addressee_srh: &SourceRoutingHeader,
+    ) {
         let client_type = self.database.get_client_type(message.client_id);
 
         let response_file_list = match client_type {
@@ -164,10 +168,13 @@ impl Server {
         };
 
         // Retrieve best path from server to client otherwise return
-        let Some(srh) = self.get_path(self.id, message.client_id) else {
-            self.logger
-                .log_error("An error occurred: failed to get routing path");
-            return;
+        let srh = match self.get_path(self.id, message.client_id) {
+            Some(new_srh) => new_srh,
+            None => {
+                self.logger
+                    .log_error("[RESPONSE FILE LIST] An error occurred: failed to get routing path, using reversed sender path");
+                addressee_srh.clone()
+            }
         };
 
         // Disassemble ResponseFileList into Packets
@@ -177,7 +184,7 @@ impl Server {
         {
             Ok(packets) => packets,
             Err(msg) => {
-                self.logger.log_error("Error disassembling ResponseFileList message! (log_debug to see more information)");
+                self.logger.log_error("[RESPONSE FILE LIST] Error disassembling message! (log_debug to see more information)");
                 self.logger
                     .log_debug(&format!("[VERBOSE] {response_file_list:?}\n Error: {msg}",));
                 return;
@@ -190,11 +197,16 @@ impl Server {
             return;
         }
 
-        self.logger.log_info("ResponseFileList sent successfully!");
+        self.logger
+            .log_info("[RESPONSE FILE LIST] Sent successfully!");
     }
 
     /// Send a list of peers from which the requested file can be downloaded
-    pub(crate) fn send_peer_list(&mut self, message: &RequestPeerList) {
+    pub(crate) fn send_peer_list(
+        &mut self,
+        message: &RequestPeerList,
+        addressee_srh: &SourceRoutingHeader,
+    ) {
         let client_type = self.database.get_client_type(message.client_id);
 
         let file_peers = match client_type {
@@ -242,17 +254,20 @@ impl Server {
         let file_list = ResponsePeerList::new(message.file_hash, peers_info);
 
         // Retrieve best path from server to client otherwise return
-        let Some(srh) = self.get_path(self.id, message.client_id) else {
-            self.logger
-                .log_error("An error occurred: failed to get routing path");
-            return;
+        let srh = match self.get_path(self.id, message.client_id) {
+            Some(new_srh) => new_srh,
+            None => {
+                self.logger
+                    .log_error("[RESPONSE PEER LIST] An error occurred: failed to get routing path, using reversed sender path");
+                addressee_srh.clone()
+            }
         };
 
         // Disassemble ResponsePeerList into Packets
         let packets = match self.packet_forge.disassemble(file_list.clone(), &srh) {
             Ok(packets) => packets,
             Err(msg) => {
-                self.logger.log_error("Error disassembling ResponsePeerList message! (log_info to see more information)");
+                self.logger.log_error("[RESPONSE PEER LIST] Error disassembling message! (log_info to see more information)");
                 self.logger
                     .log_info(&format!("[VERBOSE] {file_list:?}\n Error: {msg}"));
                 return;
@@ -265,7 +280,8 @@ impl Server {
             return;
         }
 
-        self.logger.log_info("ResponsePeerList sent successfully!");
+        self.logger
+            .log_info("[RESPONSE PEER LIST] Sent successfully!");
     }
 
     /// Unsubscribe the information of a client

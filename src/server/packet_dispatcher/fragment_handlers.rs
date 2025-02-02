@@ -4,11 +4,14 @@ mod tracker_handlers;
 use super::Server;
 
 use packet_forge::MessageType;
-use wg_internal::packet::{Fragment, Packet};
+use wg_internal::{
+    network::SourceRoutingHeader,
+    packet::{Fragment, Packet},
+};
 
 impl Server {
     /// Call the correct function for the received `MessageType`
-    fn message_handler(&mut self, message: &MessageType) {
+    fn message_handler(&mut self, message: &MessageType, addressee_srh: &SourceRoutingHeader) {
         self.logger.log_info(&format!("Processing {message:?}"));
         match message {
             MessageType::SubscribeClient(msg) => {
@@ -18,16 +21,16 @@ impl Server {
                 self.update_file_list(msg);
             }
             MessageType::RequestFileList(msg) => {
-                self.send_file_list(msg);
+                self.send_file_list(msg, &addressee_srh);
             }
             MessageType::RequestPeerList(msg) => {
-                self.send_peer_list(msg);
+                self.send_peer_list(msg, &addressee_srh);
             }
             MessageType::UnsubscribeClient(msg) => {
                 self.unsubscribe_client(msg);
             }
             MessageType::ChunkRequest(msg) => {
-                self.handle_chunk_request(msg);
+                self.handle_chunk_request(msg, &addressee_srh);
             }
             _ => {
                 self.logger
@@ -65,7 +68,9 @@ impl Server {
                 }
             };
 
-            self.message_handler(&assembled);
+            let mut addressee_srh = packet.routing_header.get_reversed();
+            addressee_srh.increase_hop_index();
+            self.message_handler(&assembled, &addressee_srh);
         }
     }
 }

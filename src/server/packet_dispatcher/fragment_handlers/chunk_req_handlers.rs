@@ -4,14 +4,19 @@ use super::Server;
 
 use bytes::Bytes;
 use packet_forge::{ChunkRequest, ChunkResponse, ClientType, Index};
+use wg_internal::network::SourceRoutingHeader;
 
 impl Server {
-    pub(crate) fn handle_chunk_request(&mut self, message: &ChunkRequest) {
+    pub(crate) fn handle_chunk_request(
+        &mut self,
+        message: &ChunkRequest,
+        addressee_srh: &SourceRoutingHeader,
+    ) {
         let client_type = self.database.get_client_type(message.client_id);
 
         let res = match client_type {
-            Ok(ClientType::Song) => self.handle_song_req(message),
-            Ok(ClientType::Video) => self.handle_video_req(message),
+            Ok(ClientType::Song) => self.handle_song_req(message, addressee_srh),
+            Ok(ClientType::Video) => self.handle_video_req(message, addressee_srh),
             Err(msg) => Err(msg),
         };
 
@@ -21,7 +26,11 @@ impl Server {
     }
 
     /// Get the requested song data from the database and sends its chunk to the client
-    fn handle_song_req(&mut self, message: &ChunkRequest) -> Result<(), String> {
+    fn handle_song_req(
+        &mut self,
+        message: &ChunkRequest,
+        addressee_srh: &SourceRoutingHeader,
+    ) -> Result<(), String> {
         // For each index in ChunkRequest send ChunkResponse
         if let Index::Indexes(vec) = &message.chunk_index {
             for chunk_index in vec {
@@ -33,9 +42,14 @@ impl Server {
                 let chunk_data = Bytes::from(segment);
                 let chunk_res = ChunkResponse::new(message.file_hash, *chunk_index, chunk_data);
 
-                // Get routing path
-                let Some(srh) = self.get_path(self.id, message.client_id) else {
-                    return Err("An error occurred: failed to get routing path".to_string());
+                // Retrieve new best path from server to client, otherwise use incoming one
+                let srh = match self.get_path(self.id, message.client_id) {
+                    Some(new_srh) => new_srh,
+                    None => {
+                        self.logger
+                            .log_error("[CHUNK RESPONSE - SONG] An error occurred: failed to get routing path, using reversed sender path");
+                        addressee_srh.clone()
+                    }
                 };
                 let next_hop = srh.hops[srh.hop_index];
 
@@ -43,14 +57,16 @@ impl Server {
                 let packets = match self.packet_forge.disassemble(chunk_res.clone(), &srh) {
                     Ok(packets) => packets,
                     Err(msg) => {
-                        return Err(format!("{chunk_res:?}\n Error while disassembling: {msg}"));
+                        return Err(format!(
+                            "{chunk_res:?}\n Error while disassembling song: {msg}"
+                        ));
                     }
                 };
 
                 self.send_save_packets(&packets, next_hop)?;
 
                 self.logger.log_info(&format!(
-                    "Forwarded ChunkResponse for {} to client-{}",
+                    "[CHUNK RESPONSE - SONG] Forwarded chunk for song: {} to client-{}",
                     message.file_hash, message.client_id
                 ));
             }
@@ -61,15 +77,25 @@ impl Server {
     }
 
     /// Get the requested video data from the database and sends its chunk to the client
-    fn handle_video_req(&mut self, message: &ChunkRequest) -> Result<(), String> {
+    fn handle_video_req(
+        &mut self,
+        message: &ChunkRequest,
+        addressee_srh: &SourceRoutingHeader,
+    ) -> Result<(), String> {
         // Retrieve data of the video from the database
         let video_data = self.database.get_video_payload(message.file_hash)?;
 
         // Split the video into chunks
         let video_chunks = get_video_chunks(video_data);
 
-        let Some(srh) = self.get_path(self.id, message.client_id) else {
-            return Err("An error occurred: failed to get routing path".to_string());
+        // Retrieve new best path from server to client, otherwise use incoming one
+        let srh = match self.get_path(self.id, message.client_id) {
+            Some(new_srh) => new_srh,
+            None => {
+                self.logger
+                            .log_error("[CHUNK RESPONSE - VIDEO] An error occurred: failed to get routing path, using reversed sender path");
+                addressee_srh.clone()
+            }
         };
         let next_hop = srh.hops[srh.hop_index];
 
@@ -84,8 +110,7 @@ impl Server {
                 Ok(packets) => packets,
                 Err(msg) => {
                     return Err(format!(
-                        "{:?}\n Error while disassembling: {}",
-                        chunk_res, msg
+                        "{chunk_res:?}\n Error while disassembling video: {msg}"
                     ));
                 }
             };
@@ -93,7 +118,7 @@ impl Server {
             self.send_save_packets(&packets, next_hop)?;
 
             self.logger.log_info(&format!(
-                "Forwarded ChunkResponse for {} to client-{}",
+                "[CHUNK RESPONSE - VIDEO] Forwarded chunk for video {} to client-{}",
                 message.file_hash, message.client_id
             ));
         }

@@ -11,14 +11,18 @@ impl Server {
         fragment_index: u64,
         session_id: SessionIdT,
     ) {
-        let dest = packet.routing_header.hops[packet.routing_header.hops.len()-1];
+        let dest = packet.routing_header.hops[packet.routing_header.hops.len() - 1];
 
         let old_srh = packet.routing_header.clone();
-        // Retrieve new best path from server to client otherwise return
-        let Some(srh) = self.get_path(self.id, dest) else {
-            self.logger
-                .log_error("An error occurred: failed to get routing path");
-            return;
+
+        // Retrieve new best path from server to client, otherwise use incoming one
+        let srh = match self.get_path(self.id, dest) {
+            Some(new_srh) => new_srh,
+            None => {
+                self.logger
+                    .log_error("[RETRANSMIT PACKET] An error occurred: failed to get routing path, using old routing header");
+                old_srh
+            }
         };
 
         let next_hop = srh.hops[srh.hop_index];
@@ -31,7 +35,7 @@ impl Server {
         }
 
         self.logger.log_info(&format!(
-            "Successfully re-sent packet [ ({fragment_index}, {session_id}) ]"
+            "[RETRANSMIT PACKET] Successfully sent packet [ ({fragment_index}, {session_id}) ]"
         ));
     }
 
@@ -44,7 +48,7 @@ impl Server {
             .cloned()
         else {
             self.logger.log_error(&format!(
-                "Failed to retrieve packet with [ ({}, {}) ] key from packet history",
+                "[NACK] Failed to retrieve packet with [ ({}, {}) ] key from packet history",
                 message.fragment_index, session_id
             ));
             return;
@@ -56,11 +60,11 @@ impl Server {
             }
             NackType::DestinationIsDrone => {
                 self.logger
-                    .log_warn(&format!("Received DestinationIsDrone for {packet:?} "));
+                    .log_warn(&format!("[NACK] Received DestinationIsDrone for {packet} "));
             }
             NackType::ErrorInRouting(node) => {
                 self.logger.log_warn(&format!(
-                    "Received ErrorInRouting at [NODE-{node}] for {packet}"
+                    "[NACK] Received ErrorInRouting at [NODE-{node}] for {packet}"
                 ));
                 // Start new flooding
                 // TODO change euristic
@@ -70,8 +74,7 @@ impl Server {
             }
             NackType::UnexpectedRecipient(node) => {
                 self.logger.log_warn(&format!(
-                    "Received UnexpectedRecipient at [NODE-{}] for {}",
-                    node, packet
+                    "[NACK] Received UnexpectedRecipient at [NODE-{node}] for {packet}"
                 ));
             }
         }
