@@ -80,7 +80,7 @@ impl Server {
 
     /// Takes a vector of packets and sends them to the `next_hop`
     pub(crate) fn send_packets_vec(
-        &mut self,
+        &self,
         packets: &[Packet],
         next_hop: NodeId,
     ) -> Result<(), String> {
@@ -92,22 +92,36 @@ impl Server {
         let sender = sender.unwrap();
 
         for packet in packets {
-            let packet_str = get_packet_type(&packet.pack_type);
-            // IF PACKET IS ACK, NACK OR FLOOD RESPONSE ADD TRY CONTROLLERSHORTCUT
-            if packet_str == "Ack" || packet_str == "Nack" || packet_str == "Flood response" {
-                // TODO Send Ack Nack Flood response to SC
-            }
+            let packet_str = get_packet_type(&packet.pack_type).to_uppercase();
             if let Err(err) = send_packet(&sender, packet) {
+                // IF PACKET IS ACK, NACK OR FLOOD RESPONSE ADD TRY CONTROLLERSHORTCUT
+                if packet_str == "ACK" || packet_str == "NACK" || packet_str == "FLOOD RESPONSE" {
+                    self.logger.log_warn(&format!("[{packet_str}] - Failed to forward packet to [DRONE-{next_hop}]. \n Error: {err} \n Trying to use SC shortcut..."));
+                    // Send to SC
+                    let res = sc_send_packet(
+                        &self.controller_send,
+                        &DroneEvent::ControllerShortcut(packet.clone()),
+                    );
+
+                    if let Err(err) = res {
+                        self.logger.log_error(&format!("[{packet_str}] - {err}"));
+                        return Err(format!(
+                    "[{packet_str}] - Unable to forward packet to neither next hop nor SC. \n {packet}"));
+                    }
+
+                    self.logger
+                        .log_debug(&format!("[{packet_str}] - Sent through SC: {packet}",));
+
+                    return Ok(());
+                }
+
                 return Err(format!(
-                    "Failed to send packet to [DRONE-{}].\nPacket: {}\n Error: {}",
-                    next_hop, packet, err
-                ));
-            } else {
-                self.logger.log_debug(&format!(
-                    "[{}] - Sent {packet}",
-                    packet_str.to_ascii_uppercase()
+                    "Failed to send packet to [DRONE-{next_hop}].\n {packet} \n Error: {err}"
                 ));
             }
+
+            self.logger
+                .log_debug(&format!("[{packet_str}] - Sent {packet}"));
             self.event_dispatcher(packet, &packet_str);
         }
         Ok(())

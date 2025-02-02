@@ -1,9 +1,7 @@
-use crate::packet_send::sc_send_packet;
-
 use super::Server;
 
 use packet_forge::SessionIdT;
-use wg_internal::{controller::DroneEvent, packet::Packet};
+use wg_internal::packet::Packet;
 
 impl Server {
     /// Builds and sends an `Ack` to the `next_hop`. If it fails it tries to use the Simulation Controller
@@ -23,26 +21,6 @@ impl Server {
 
         if let Err(msg) = self.send_packets_vec(&[ack], next_hop) {
             self.logger.log_error(&msg);
-            self.logger
-                .log_debug(&format!("[ACK] Trying to use SC shortcut..."));
-
-            // Send to SC
-            if let Err(msg) = sc_send_packet(
-                &self.controller_send,
-                &DroneEvent::ControllerShortcut(packet.clone()),
-            ) {
-                self.logger.log_error(&format!("[ACK] - {}", msg));
-                self.logger.log_error(&format!(
-                    "[ACK] - Unable to forward packet to neither next hop nor SC. \n Packet: {}",
-                    packet
-                ));
-                return;
-            }
-
-            self.logger.log_debug(&format!(
-                "[ACK] - Successfully sent ack through SC. Packet: {}",
-                packet
-            ));
         }
     }
 

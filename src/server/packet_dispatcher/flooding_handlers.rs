@@ -4,11 +4,10 @@ use std::vec;
 
 use super::Server;
 
-use wg_internal::controller::DroneEvent;
 use wg_internal::network::{NodeId, SourceRoutingHeader};
 use wg_internal::packet::{FloodRequest, NodeType, Packet};
 
-use crate::packet_send::{get_sender, sc_send_packet, send_packet};
+use crate::packet_send::send_packet;
 use crate::utils::get_packet_type;
 
 impl Server {
@@ -67,42 +66,8 @@ impl Server {
         (dest.unwrap(), packet)
     }
 
-    fn send_flood_response(&self, sender: NodeId, packet: &Packet) -> Result<(), String> {
-        let sender = get_sender(sender, &self.packet_send);
-
-        if let Err(err) = sender {
-            return Err(format!(
-                "[FLOOD RESPONSE] - Error occurred while sending flood response: {}",
-                err
-            ));
-        }
-
-        let sender = sender.unwrap();
-        if let Err(err) = send_packet(&sender, packet) {
-            self.logger.log_warn(&format!("[FLOOD RESPONSE] - Failed to forward packet to [DRONE-{}]. \n Error: {} \n Trying to use SC shortcut...", packet.routing_header.current_hop().unwrap(), err));
-            // Send to SC
-            let res = sc_send_packet(
-                &self.controller_send,
-                &DroneEvent::ControllerShortcut(packet.clone()),
-            );
-
-            if let Err(err) = res {
-                self.logger
-                    .log_error(&format!("[FLOOD RESPONSE] - {}", err));
-                return Err(format!(
-                    "[FLOOD RESPONSE] - Unable to forward packet to neither next hop nor SC. \n Packet: {}",
-                    packet
-                ));
-            }
-
-            self.logger.log_info(&format!(
-                "[FLOOD RESPONSE] - Successfully sent flood response through SC: {packet}",
-            ));
-        } else {
-            self.logger
-                .log_info(&format!("[FLOOD RESPONSE] Forwarded {packet}"));
-        }
-        Ok(())
+    fn send_flood_response(&self, next_hop: NodeId, packet: &Packet) -> Result<(), String> {
+        self.send_packets_vec(&[packet.clone()], next_hop)
     }
 
     /// Build a flood response for the received flood request
