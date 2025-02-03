@@ -21,16 +21,16 @@ impl Server {
                 self.update_file_list(msg);
             }
             MessageType::RequestFileList(msg) => {
-                self.send_file_list(msg, &addressee_srh);
+                self.send_file_list(msg, addressee_srh);
             }
             MessageType::RequestPeerList(msg) => {
-                self.send_peer_list(msg, &addressee_srh);
+                self.send_peer_list(msg, addressee_srh);
             }
             MessageType::UnsubscribeClient(msg) => {
                 self.unsubscribe_client(msg);
             }
             MessageType::ChunkRequest(msg) => {
-                self.handle_chunk_request(msg, &addressee_srh);
+                self.handle_chunk_request(msg, addressee_srh);
             }
             _ => {
                 self.logger
@@ -60,10 +60,8 @@ impl Server {
             let assembled = match self.packet_forge.assemble_dynamic(fragments.clone()) {
                 Ok(message) => message,
                 Err(e) => {
-                    self.logger.log_error(&format!(
-                        "An error occurred when assembling fragments: {}",
-                        e
-                    ));
+                    self.logger
+                        .log_error(&format!("An error occurred when assembling fragments: {e}"));
                     return;
                 }
             };

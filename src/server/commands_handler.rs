@@ -28,14 +28,16 @@ impl Server {
         if !self.terminated {
             let res = match command {
                 DroneCommand::RemoveSender(id) => self.remove_sender(*id),
-                DroneCommand::AddSender(id, sender) => self.add_sender(*id, &sender),
+                DroneCommand::AddSender(id, sender) => self.add_sender(*id, sender),
                 DroneCommand::Crash => {
                     self.logger
                         .log_info("[SC COMMAND] - Received crash command. Terminating!");
                     self.terminated = true;
                     Ok(())
                 }
-                _ => Err("[SC COMMAND] - Received unhandled SC command (ChangePdr)!".to_string()),
+                DroneCommand::SetPacketDropRate(_) => {
+                    Err("[SC COMMAND] - Received unhandled SC command (ChangePdr)!".to_string())
+                }
             };
 
             if let Err(err) = res {

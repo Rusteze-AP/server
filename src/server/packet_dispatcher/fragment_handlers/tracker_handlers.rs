@@ -54,7 +54,7 @@ impl Server {
         // Add client to database `client_tree`
         if let Err(msg) = self
             .database
-            .insert_client(message.client_id, message.client_type.clone())
+            .insert_client(message.client_id, &message.client_type)
         {
             self.logger.log_error(&msg);
             return;
@@ -135,13 +135,14 @@ impl Server {
         let response_file_list = match client_type {
             Ok(ClientType::Song) => {
                 let songs = self.database.get_all_songs_metadata();
-                if let Err(msg) = songs {
-                    self.logger.log_error(&msg);
-                    return;
+
+                if songs.is_empty() {
+                    self.logger
+                        .log_warn("[RESPONSE FILE LIST] Sending an empty song list!");
                 }
+
                 ResponseFileList::new(
                     songs
-                        .unwrap()
                         .iter()
                         .map(|song| FileMetadata::Song(song.clone()))
                         .collect(),
@@ -149,13 +150,14 @@ impl Server {
             }
             Ok(ClientType::Video) => {
                 let videos = self.database.get_all_videos_metadata();
-                if let Err(msg) = videos {
-                    self.logger.log_error(&msg);
-                    return;
+
+                if videos.is_empty() {
+                    self.logger
+                        .log_warn("[RESPONSE FILE LIST] Sending an empty video list!");
                 }
+
                 ResponseFileList::new(
                     videos
-                        .unwrap()
                         .iter()
                         .map(|video| FileMetadata::Video(video.clone()))
                         .collect(),
@@ -168,13 +170,12 @@ impl Server {
         };
 
         // Retrieve best path from server to client otherwise return
-        let srh = match self.get_path(self.id, message.client_id) {
-            Some(new_srh) => new_srh,
-            None => {
-                self.logger
-                    .log_error("[RESPONSE FILE LIST] An error occurred: failed to get routing path, using reversed sender path");
-                addressee_srh.clone()
-            }
+        let srh = if let Some(new_srh) = self.get_path(self.id, message.client_id) {
+            new_srh
+        } else {
+            self.logger
+                             .log_error("[RESPONSE FILE LIST] An error occurred: failed to get routing path, using reversed sender path");
+            addressee_srh.clone()
         };
 
         // Disassemble ResponseFileList into Packets
@@ -254,13 +255,12 @@ impl Server {
         let file_list = ResponsePeerList::new(message.file_hash, peers_info);
 
         // Retrieve best path from server to client otherwise return
-        let srh = match self.get_path(self.id, message.client_id) {
-            Some(new_srh) => new_srh,
-            None => {
-                self.logger
-                    .log_error("[RESPONSE PEER LIST] An error occurred: failed to get routing path, using reversed sender path");
-                addressee_srh.clone()
-            }
+        let srh = if let Some(new_srh) = self.get_path(self.id, message.client_id) {
+            new_srh
+        } else {
+            self.logger
+                             .log_error("[RESPONSE PEER LIST] An error occurred: failed to get routing path, using reversed sender path");
+            addressee_srh.clone()
         };
 
         // Disassemble ResponsePeerList into Packets

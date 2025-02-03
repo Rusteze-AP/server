@@ -43,13 +43,12 @@ impl Server {
                 let chunk_res = ChunkResponse::new(message.file_hash, *chunk_index, chunk_data);
 
                 // Retrieve new best path from server to client, otherwise use incoming one
-                let srh = match self.get_path(self.id, message.client_id) {
-                    Some(new_srh) => new_srh,
-                    None => {
-                        self.logger
-                            .log_error("[CHUNK RESPONSE - SONG] An error occurred: failed to get routing path, using reversed sender path");
-                        addressee_srh.clone()
-                    }
+                let srh = if let Some(new_srh) = self.get_path(self.id, message.client_id) {
+                    new_srh
+                } else {
+                    self.logger
+                                             .log_error("[CHUNK RESPONSE - SONG] An error occurred: failed to get routing path, using reversed sender path");
+                    addressee_srh.clone()
                 };
                 let next_hop = srh.hops[srh.hop_index];
 
@@ -89,13 +88,12 @@ impl Server {
         let video_chunks = get_video_chunks(video_data);
 
         // Retrieve new best path from server to client, otherwise use incoming one
-        let srh = match self.get_path(self.id, message.client_id) {
-            Some(new_srh) => new_srh,
-            None => {
-                self.logger
-                            .log_error("[CHUNK RESPONSE - VIDEO] An error occurred: failed to get routing path, using reversed sender path");
-                addressee_srh.clone()
-            }
+        let srh = if let Some(new_srh) = self.get_path(self.id, message.client_id) {
+            new_srh
+        } else {
+            self.logger
+                                     .log_error("[CHUNK RESPONSE - VIDEO] An error occurred: failed to get routing path, using reversed sender path");
+            addressee_srh.clone()
         };
         let next_hop = srh.hops[srh.hop_index];
 

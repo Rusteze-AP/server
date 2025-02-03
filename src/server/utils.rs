@@ -85,11 +85,7 @@ impl Server {
         next_hop: NodeId,
     ) -> Result<(), String> {
         // Get the sender channel for the next hop and forward
-        let sender = get_sender(next_hop, &self.packet_send);
-        if sender.is_err() {
-            return Err(format!("{}", &sender.unwrap_err()));
-        }
-        let sender = sender.unwrap();
+        let sender = get_sender(next_hop, &self.packet_send)?;
 
         for packet in packets {
             let packet_str = get_packet_type(&packet.pack_type).to_uppercase();
@@ -137,9 +133,7 @@ impl Server {
         packets: &[Packet],
         next_hop: NodeId,
     ) -> Result<(), String> {
-        if let Err(msg) = self.send_packets_vec(packets, next_hop) {
-            return Err(msg);
-        }
+        self.send_packets_vec(packets, next_hop)?;
 
         self.insert_packet_history(packets);
 

@@ -9,15 +9,14 @@ impl Server {
         // Dest is 0 because the srh has not been reversed yet
         let dest = packet.routing_header.hops[0];
 
-        let source_routing_header = match self.get_path(self.id, dest) {
-            Some(new_srh) => new_srh,
-            None => {
-                self.logger
-                    .log_error("[RETRANSMIT PACKET] An error occurred: failed to get routing path, using old routing header");
-                let mut srh = packet.routing_header.get_reversed();
-                srh.increase_hop_index();
-                srh
-            }
+        let source_routing_header = if let Some(new_srh) = self.get_path(self.id, dest) {
+            new_srh
+        } else {
+            self.logger
+                             .log_error("[RETRANSMIT PACKET] An error occurred: failed to get routing path, using old routing header");
+            let mut srh = packet.routing_header.get_reversed();
+            srh.increase_hop_index();
+            srh
         };
 
         if source_routing_header.hop_index != 1 {
@@ -42,8 +41,7 @@ impl Server {
             .remove(&(fragment_index, session_id))
         else {
             self.logger.log_error(&format!(
-                "Failed to remove [ ({}, {}) ] key from sent fragments history",
-                fragment_index, session_id
+                "Failed to remove [ ({fragment_index}, {session_id}) ] key from sent fragments history"
             ));
             return;
         };

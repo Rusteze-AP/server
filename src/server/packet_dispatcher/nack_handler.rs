@@ -1,5 +1,3 @@
-use std::{thread, time::Duration};
-
 use super::Server;
 
 use packet_forge::SessionIdT;
@@ -18,13 +16,12 @@ impl Server {
         let old_srh = packet.routing_header.clone();
 
         // Retrieve new best path from server to client, otherwise use the old_one
-        let srh = match self.get_path(self.id, dest) {
-            Some(new_srh) => new_srh,
-            None => {
-                self.logger
-                    .log_error("[RETRANSMIT PACKET] An error occurred: failed to get routing path, using old routing header");
-                old_srh
-            }
+        let srh = if let Some(new_srh) = self.get_path(self.id, dest) {
+            new_srh
+        } else {
+            self.logger
+                             .log_error("[RETRANSMIT PACKET] An error occurred: failed to get routing path, using old routing header");
+            old_srh
         };
 
         let next_hop = srh.hops[srh.hop_index];

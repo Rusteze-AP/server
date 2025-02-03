@@ -6,7 +6,7 @@ use wg_internal::network::NodeId;
 use super::{construct_payload_key, Database, FileEntry};
 
 impl Database {
-    /// Insert a FileEntry for SongMetaData into the `songs_tree``
+    /// Insert a `FileEntry` for `SongMetaData` into the `songs_tree`
     fn insert_song_file_entry(
         &self,
         mut file_hash: FileHash,
@@ -18,11 +18,11 @@ impl Database {
         }
 
         let serialized_entry =
-            bincode::serialize(&file_entry).map_err(|e| format!("Serialization error: {}", e))?;
+            bincode::serialize(&file_entry).map_err(|e| format!("Serialization error: {e}"))?;
         self.songs_tree
             .insert(file_hash.to_be_bytes(), serialized_entry)
             .map(|_| file_hash)
-            .map_err(|e| format!("Error inserting song metadata: {}", e))
+            .map_err(|e| format!("Error inserting song metadata: {e}"))
     }
 
     /// Inserts song payload into the database.
@@ -35,7 +35,7 @@ impl Database {
         let key = construct_payload_key(prefix, id);
         match self.songs_tree.insert(key, payload) {
             Ok(_) => Ok(()),
-            Err(e) => Err(format!("Error inserting song payload: {}", e)),
+            Err(e) => Err(format!("Error inserting song payload: {e}")),
         }
     }
 
@@ -55,11 +55,11 @@ impl Database {
 
             let song_title_parsed = song.title.replace(' ', "").to_lowercase();
 
-            let song_parts = fs::read_dir(format!("{}/songs/{}", local_path, song_title_parsed))
-                .map_err(|e| format!("Error reading directory {}: {}", local_path, e))?;
+            let song_parts = fs::read_dir(format!("{local_path}/songs/{song_title_parsed}"))
+                .map_err(|e| format!("Error reading directory {local_path}: {e}"))?;
 
             for part in song_parts {
-                let part = part.map_err(|e| format!("Error reading directory part: {}", e))?;
+                let part = part.map_err(|e| format!("Error reading directory part: {e}"))?;
                 let path = part.path();
                 if path.is_file() {
                     let entry_content = fs::read(&path).map_err(|e| {
@@ -79,7 +79,7 @@ impl Database {
                             .unwrap()
                             + 1;
 
-                        let prefix = &format!("ts{}", segment);
+                        let prefix = &format!("ts{segment}");
                         self.insert_song_payload(prefix, song_id, entry_content)?;
                     }
                     // CONTINUE SKIP INVALID FILE EXTENSION
@@ -98,19 +98,15 @@ impl Database {
         peer_id: NodeId,
     ) -> Result<(), String> {
         // Attempt to retrieve the existing song entry
-        let mut file_entry = match self.get_song_entry(song_metadata.id) {
-            Ok(mut entry) => {
-                // Add the client to the peers if the entry exists
-                entry.peers.insert(peer_id);
-                entry
-            }
-            Err(_) => {
-                // If the entry does not exist, create a new FileEntry
-                let new_entry = FileEntry {
-                    file_metadata: song_metadata.clone(),
-                    peers: HashSet::from([peer_id]),
-                };
-                new_entry
+        let mut file_entry = if let Ok(mut entry) = self.get_song_entry(song_metadata.id) {
+            // Add the client to the peers if the entry exists
+            entry.peers.insert(peer_id);
+            entry
+        } else {
+            // If the entry does not exist, create a new FileEntry
+            FileEntry {
+                file_metadata: song_metadata.clone(),
+                peers: HashSet::from([peer_id]),
             }
         };
 
@@ -122,7 +118,7 @@ impl Database {
 
     pub(crate) fn remove_song(&self, peer_id: FileHash) -> Result<(), String> {
         if let Err(msg) = self.songs_tree.remove(peer_id.to_be_bytes()) {
-            return Err(format!("An error occurred while removing a song: {}", msg));
+            return Err(format!("An error occurred while removing a song: {msg}"));
         }
         Ok(())
     }
@@ -131,14 +127,14 @@ impl Database {
         let mut errors: Vec<String> = Vec::new();
 
         // Process songs_tree
-        for entry in self.songs_tree.iter() {
+        for entry in &self.songs_tree {
             match entry {
                 Ok((_, value)) => {
                     let mut file_entry: FileEntry<SongMetaData> = match bincode::deserialize(&value)
                     {
                         Ok(fe) => fe,
                         Err(e) => {
-                            errors.push(format!("Deserialization error: {}", e));
+                            errors.push(format!("Deserialization error: {e}"));
                             continue; // Skip this entry
                         }
                     };
@@ -149,12 +145,12 @@ impl Database {
                         if let Err(e) = self
                             .insert_song_file_entry(file_entry.file_metadata.id, &mut file_entry)
                         {
-                            errors.push(format!("Error updating song entry: {}", e));
+                            errors.push(format!("Error updating song entry: {e}"));
                         }
                     }
                 }
                 Err(e) => {
-                    errors.push(format!("Error iterating songs_tree: {}", e));
+                    errors.push(format!("Error iterating songs_tree: {e}"));
                 }
             }
         }
@@ -162,7 +158,7 @@ impl Database {
         if !errors.is_empty() {
             for error in &errors {
                 // TODO use logger
-                eprintln!("{}", error); // Log errors
+                eprintln!("{error}"); // Log errors
             }
             return Err(format!(
                 "Remove peer from songs completed with {} errors",

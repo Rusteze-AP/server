@@ -40,14 +40,14 @@ impl Database {
     /// Creates or opens a database at the specified path.
     pub fn new(database: &str, server_id: NodeId) -> Self {
         let db = sled::open(database).unwrap_or_else(|e| {
-            eprintln!("Error opening database: {}", e);
+            eprintln!("Error opening database: {e}");
             process::exit(1); // Exit the program with an error code
         });
 
         // Helper function to open trees and exit on error
         let open_tree = |tree_name: &str| {
             db.open_tree(tree_name).unwrap_or_else(|e| {
-                eprintln!("Error opening {} tree: {}", tree_name, e);
+                eprintln!("Error opening {tree_name} tree: {e}");
                 process::exit(1); // Exit the program with an error code
             })
         };
@@ -75,24 +75,23 @@ impl Database {
 
         for tree in trees {
             tree.clear()
-                .map_err(|e| format!("Error clearing database: {}", e))?;
+                .map_err(|e| format!("Error clearing database: {e}"))?;
             tree.flush()
-                .map_err(|e| format!("Error flushing database: {}", e))?;
+                .map_err(|e| format!("Error flushing database: {e}"))?;
         }
 
         Ok(())
     }
 
     fn load_json_metadata<T: Metadata>(
-        &self,
         json_file_path: &str,
         json_array: &str,
     ) -> Result<Vec<T>, String> {
         let file_content = fs::read_to_string(json_file_path)
-            .map_err(|e| format!("Error reading file {}: {}", json_file_path, e))?;
+            .map_err(|e| format!("Error reading file {json_file_path}: {e}"))?;
 
-        let json_data: serde_json::Value = serde_json::from_str(&file_content)
-            .map_err(|e| format!("Error parsing JSON: {}", e))?;
+        let json_data: serde_json::Value =
+            serde_json::from_str(&file_content).map_err(|e| format!("Error parsing JSON: {e}"))?;
 
         let songs_array = json_data[json_array]
             .as_array()
@@ -101,8 +100,7 @@ impl Database {
         songs_array
             .iter()
             .map(|song| {
-                serde_json::from_value(song.clone())
-                    .map_err(|e| format!("Invalid song data: {}", e))
+                serde_json::from_value(song.clone()).map_err(|e| format!("Invalid song data: {e}"))
             })
             .collect()
     }
@@ -124,13 +122,13 @@ impl Database {
 
         if let Some(file_name) = file_songs_name {
             let songs_metadata_path = local_path.to_string() + "/" + file_name;
-            let songs_array = self.load_json_metadata(&songs_metadata_path, "songs")?;
+            let songs_array = Self::load_json_metadata(&songs_metadata_path, "songs")?;
             self.insert_songs_from_vec(local_path, &songs_array)?;
         }
 
         if let Some(file_name) = file_video_name {
             let videos_metadata_path = local_path.to_string() + "/" + file_name;
-            let videos_array = self.load_json_metadata(&videos_metadata_path, "videos")?;
+            let videos_array = Self::load_json_metadata(&videos_metadata_path, "videos")?;
             self.insert_videos_from_vec(local_path, &videos_array)?;
         }
 

@@ -44,7 +44,7 @@ impl Server {
             );
             if let Err(err) = send_packet(sender, &packet) {
                 self.logger
-                    .log_error(&format!("[FLOODING] Sending to [DRONE-{}]: {}", id, err));
+                    .log_error(&format!("[FLOODING] Sending to [DRONE-{id}]: {err}"));
             }
             let packet_str = get_packet_type(&packet.pack_type);
             self.event_dispatcher(&packet, &packet_str);
