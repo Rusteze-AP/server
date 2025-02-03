@@ -36,10 +36,12 @@ impl Server {
             initiator_id: self.id,
             path_trace: vec![(self.id, NodeType::Server)],
         };
+
+        let session_id = self.packet_forge.get_session_id();
         for (id, sender) in &self.packet_send {
             let packet = Packet::new_flood_request(
                 SourceRoutingHeader::new(vec![], 0),
-                self.packet_forge.get_session_id(),
+                session_id,
                 flood_req.clone(),
             );
             if let Err(err) = send_packet(sender, &packet) {
