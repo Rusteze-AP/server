@@ -41,7 +41,11 @@ impl Server {
     /// - Add client to `client_tree` (id -> type):
     ///     - if audio adds info to `audio_tree`
     ///     - if video adds info to `video_tree`
-    pub(crate) fn subscribe_client(&mut self, message: &SubscribeClient) {
+    pub(crate) fn subscribe_client(
+        &mut self,
+        message: &SubscribeClient,
+        addressee_srh: &SourceRoutingHeader,
+    ) {
         // Check if client is already subscribed
         if self.database.contains_client(message.client_id) {
             self.logger.log_warn(&format!(
@@ -81,9 +85,11 @@ impl Server {
         }
 
         self.logger.log_info(&format!(
-            "Client {} subscribed with success!",
+            "Client {} subscribed with success! Sending file list...",
             message.client_id
         ));
+
+        self.send_file_list(message.client_id, addressee_srh);
     }
 
     /// Given a client, remove or add information about a file that it shares.
@@ -127,10 +133,10 @@ impl Server {
     /// Send all the file available to the requesting client
     pub(crate) fn send_file_list(
         &mut self,
-        message: &RequestFileList,
+        client_id: NodeId,
         addressee_srh: &SourceRoutingHeader,
     ) {
-        let client_type = self.database.get_client_type(message.client_id);
+        let client_type = self.database.get_client_type(client_id);
 
         let response_file_list = match client_type {
             Ok(ClientType::Song) => {
@@ -170,7 +176,7 @@ impl Server {
         };
 
         // Retrieve best path from server to client otherwise return
-        let srh = if let Some(new_srh) = self.get_path(self.id, message.client_id) {
+        let srh = if let Some(new_srh) = self.get_path(self.id, client_id) {
             new_srh
         } else {
             self.logger

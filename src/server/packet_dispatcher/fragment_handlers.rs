@@ -15,13 +15,13 @@ impl Server {
         self.logger.log_info(&format!("Processing {message:?}"));
         match message {
             MessageType::SubscribeClient(msg) => {
-                self.subscribe_client(msg);
+                self.subscribe_client(msg, addressee_srh);
             }
             MessageType::UpdateFileList(msg) => {
                 self.update_file_list(msg);
             }
             MessageType::RequestFileList(msg) => {
-                self.send_file_list(msg, addressee_srh);
+                self.send_file_list(msg.client_id, addressee_srh);
             }
             MessageType::RequestPeerList(msg) => {
                 self.send_peer_list(msg, addressee_srh);
