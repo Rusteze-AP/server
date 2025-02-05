@@ -13,15 +13,16 @@ impl Server {
     pub(crate) fn packet_dispatcher(&mut self, packet: &Packet) {
         self.logger.log_info(&format!("Received: {packet}"));
 
-        // Update heurisic congestions
-        self.routing_handler.nodes_congestion(packet.routing_header.clone());
-
+        
         // Handle flood request since SRH is empty
         if let PacketType::FloodRequest(flood_req) = &packet.pack_type {
             self.handle_flood_request(flood_req, packet.session_id);
             return;
         }
-
+        
+        // Update heurisic congestions
+        self.routing_handler.nodes_congestion(packet.routing_header.clone());
+        
         // Check if the packet is for this server
         if !check_packet_dest(&packet.routing_header, self.id, &self.logger) {
             self.logger.log_warn("Packet has wrong destination!");
