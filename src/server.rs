@@ -63,7 +63,7 @@ impl Server {
             curr_flood_id: 0,
             used_flood_id: HashSet::new(),
             flood_countdown: Instant::now(),
-            logger: Logger::new(LogLevel::All as u8, false, format!("SERVER-{id}")),
+            logger: Logger::new(LogLevel::None as u8, false, format!("SERVER-{id}")),
         }
     }
 
