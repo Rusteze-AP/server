@@ -19,8 +19,7 @@ impl Server {
         let srh = if let Some(new_srh) = self.get_path(self.id, dest) {
             new_srh
         } else {
-            self.logger
-                             .log_error("[RETRANSMIT PACKET] An error occurred: failed to get routing path, using old routing header");
+            self.logger.log_error("[RETRANSMIT PACKET] An error occurred: failed to get routing path, using old routing header");
             old_srh
         };
 

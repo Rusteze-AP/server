@@ -55,9 +55,9 @@ impl Server {
         self.send_ack(packet, frag.fragment_index);
 
         // If all fragments are received, assemble the message
-        let fragments = self.recv_fragments_map.get(&key).unwrap();
+        let mut fragments = self.recv_fragments_map.get(&key).unwrap().clone();
         if fragments.len() as u64 == total_fragments {
-            let assembled = match self.packet_forge.assemble_dynamic(fragments.clone()) {
+            let assembled = match self.packet_forge.assemble_dynamic(&mut fragments) {
                 Ok(message) => message,
                 Err(e) => {
                     self.logger
