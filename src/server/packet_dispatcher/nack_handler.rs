@@ -1,7 +1,7 @@
 use super::Server;
 
 use packet_forge::SessionIdT;
-use wg_internal::packet::{Nack, NackType, Packet};
+use wg_internal::{network::NodeId, packet::{Nack, NackType, Packet}};
 
 impl Server {
     /// This function retransmit the packet for which the server received the Nack and tries to calculate a new optimal path.
@@ -38,7 +38,7 @@ impl Server {
     }
 
     /// Handle different types of nacks
-    pub(crate) fn nack_handler(&mut self, message: &Nack, session_id: SessionIdT) {
+    pub(crate) fn nack_handler(&mut self, message: &Nack, session_id: SessionIdT, source_node_id: NodeId) {
         // Retrieve the packet that generated the nack
         let Some(mut packet) = self
             .sent_fragments_history
@@ -54,6 +54,8 @@ impl Server {
 
         match message.nack_type {
             NackType::Dropped => {
+                // Update graph heuristic
+                self.routing_handler.node_nack(source_node_id);
                 self.retransmit_packet(&mut packet, message.fragment_index, session_id);
             }
             NackType::DestinationIsDrone => {

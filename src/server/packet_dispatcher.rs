@@ -13,6 +13,9 @@ impl Server {
     pub(crate) fn packet_dispatcher(&mut self, packet: &Packet) {
         self.logger.log_info(&format!("Received: {packet}"));
 
+        // Update heurisic congestions
+        self.routing_handler.nodes_congestion(packet.routing_header.clone());
+
         // Handle flood request since SRH is empty
         if let PacketType::FloodRequest(flood_req) = &packet.pack_type {
             self.handle_flood_request(flood_req, packet.session_id);
@@ -36,7 +39,7 @@ impl Server {
                 self.ack_handler(ack.fragment_index, packet.session_id);
             }
             PacketType::Nack(nack) => {
-                self.nack_handler(nack, packet.session_id);
+                self.nack_handler(nack, packet.session_id, packet.routing_header.hops[0]);
             }
             PacketType::FloodRequest(flood_req) => {
                 self.logger.log_error(&format!(
