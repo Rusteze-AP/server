@@ -93,11 +93,11 @@ impl Database {
         let json_data: serde_json::Value =
             serde_json::from_str(&file_content).map_err(|e| format!("Error parsing JSON: {e}"))?;
 
-        let songs_array = json_data[json_array]
+        let data_array = json_data[json_array]
             .as_array()
             .ok_or_else(|| format!("Invalid JSON: '{json_array}' is not an array"))?;
 
-        songs_array
+        data_array
             .iter()
             .map(|song| {
                 serde_json::from_value(song.clone()).map_err(|e| format!("Invalid song data: {e}"))
