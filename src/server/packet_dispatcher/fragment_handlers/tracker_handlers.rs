@@ -174,8 +174,6 @@ impl Server {
                 return;
             }
         };
-        self.logger
-            .log_warn(&format!("response_file_list: {response_file_list:?}"));
 
         // Retrieve best path from server to client otherwise return
         let srh = if let Some(new_srh) = self.get_path(self.id, client_id) {
