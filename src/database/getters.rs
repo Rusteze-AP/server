@@ -46,8 +46,8 @@ impl Database {
             .ok_or_else(|| "Video payload not found".to_string())
     }
 
-    /// Retrieves metadata for all songs in the database.
-    pub(crate) fn get_all_songs_metadata(&self) -> Vec<SongMetaData> {
+    /// Retrieves metadata for all songs in the database, excluding those shared by the specified node.
+    pub(crate) fn get_songs_filtered(&self, node_id: NodeId) -> Vec<SongMetaData> {
         self.songs_tree
             .iter()
             .filter_map(|entry| {
@@ -59,16 +59,20 @@ impl Database {
                     }
 
                     // Attempt to deserialize the data
-                    return bincode::deserialize::<SongMetaData>(&data).ok();
+                    if let Ok(file_entry) = bincode::deserialize::<FileEntry<SongMetaData>>(&data) {
+                        // Exclude entries where node_id is present in peers
+                        if !file_entry.peers.contains(&node_id) {
+                            return Some(file_entry.file_metadata);
+                        }
+                    }
                 }
-
                 None
             })
             .collect()
     }
 
-    /// Retrieves metadata for all videos in the database.
-    pub(crate) fn get_all_videos_metadata(&self) -> Vec<VideoMetaData> {
+    /// Retrieves metadata for all videos in the database, excluding those shared by the specified node.
+    pub(crate) fn get_videos_filtered(&self, node_id: NodeId) -> Vec<VideoMetaData> {
         self.video_tree
             .iter()
             .filter_map(|entry| {
@@ -80,7 +84,13 @@ impl Database {
                     }
 
                     // Attempt to deserialize the data
-                    return bincode::deserialize::<VideoMetaData>(&data).ok();
+                    if let Ok(file_entry) = bincode::deserialize::<FileEntry<VideoMetaData>>(&data)
+                    {
+                        // Exclude entries where node_id is present in peers
+                        if !file_entry.peers.contains(&node_id) {
+                            return Some(file_entry.file_metadata);
+                        }
+                    }
                 }
 
                 None

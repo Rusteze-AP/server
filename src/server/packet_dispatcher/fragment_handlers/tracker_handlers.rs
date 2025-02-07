@@ -140,7 +140,7 @@ impl Server {
 
         let response_file_list = match client_type {
             Ok(ClientType::Song) => {
-                let songs = self.database.get_all_songs_metadata();
+                let songs = self.database.get_songs_filtered(client_id);
 
                 if songs.is_empty() {
                     self.logger
@@ -155,7 +155,7 @@ impl Server {
                 )
             }
             Ok(ClientType::Video) => {
-                let videos = self.database.get_all_videos_metadata();
+                let videos = self.database.get_videos_filtered(client_id);
 
                 if videos.is_empty() {
                     self.logger
@@ -174,6 +174,8 @@ impl Server {
                 return;
             }
         };
+        self.logger
+            .log_warn(&format!("response_file_list: {response_file_list:?}"));
 
         // Retrieve best path from server to client otherwise return
         let srh = if let Some(new_srh) = self.get_path(self.id, client_id) {
