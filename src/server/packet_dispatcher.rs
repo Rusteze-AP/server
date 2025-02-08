@@ -37,6 +37,8 @@ impl Server {
                 self.routing_handler.update_graph(flood_res.clone());
             }
             PacketType::Ack(ack) => {
+                self.routing_handler
+                    .nodes_ack(packet.routing_header.clone());
                 self.ack_handler(ack.fragment_index, packet.session_id);
             }
             PacketType::Nack(nack) => {
