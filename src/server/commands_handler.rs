@@ -27,8 +27,14 @@ impl Server {
     pub(crate) fn command_dispatcher(&mut self, command: &DroneCommand) {
         if !self.terminated {
             let res = match command {
-                DroneCommand::RemoveSender(id) => self.remove_sender(*id),
-                DroneCommand::AddSender(id, sender) => self.add_sender(*id, sender),
+                DroneCommand::RemoveSender(id) => {
+                    self.init_flood_request();
+                    self.remove_sender(*id)
+                },
+                DroneCommand::AddSender(id, sender) => {
+                    self.init_flood_request();
+                    self.add_sender(*id, sender)
+                },
                 DroneCommand::Crash => {
                     self.logger
                         .log_info("[SC COMMAND] - Received crash command. Terminating!");
