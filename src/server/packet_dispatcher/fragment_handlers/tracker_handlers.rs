@@ -148,6 +148,7 @@ impl Server {
                 }
 
                 ResponseFileList::new(
+                    self.id,
                     songs
                         .iter()
                         .map(|song| FileMetadata::Song(song.clone()))
@@ -163,6 +164,7 @@ impl Server {
                 }
 
                 ResponseFileList::new(
+                    self.id,
                     videos
                         .iter()
                         .map(|video| FileMetadata::Video(video.clone()))
