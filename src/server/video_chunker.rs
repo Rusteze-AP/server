@@ -46,7 +46,7 @@ impl VideoChunker {
     }
 }
 
-struct ChunkIterator {
+pub struct ChunkIterator {
     chunker: VideoChunker,
 }
 
@@ -63,8 +63,14 @@ impl Iterator for ChunkIterator {
     }
 }
 
-pub fn get_video_chunks(video_data: Vec<u8>) -> impl Iterator<Item = Bytes> {
-    // Create the chunker with a 1MB chunk size
-    let chunker = VideoChunker::new(video_data, 1024 * 1024);
+impl ExactSizeIterator for ChunkIterator {
+    fn len(&self) -> usize {
+        (self.chunker.data_size as usize + self.chunker.chunk_size - 1) / self.chunker.chunk_size
+    }
+}
+
+pub fn get_video_chunks(video_data: Vec<u8>) -> ChunkIterator {
+    // Create the chunker with a 256KB chunk size
+    let chunker = VideoChunker::new(video_data, 512 * 512);
     ChunkIterator { chunker }
 }
