@@ -92,8 +92,8 @@ impl Server {
                 break;
             }
 
-            // Flood request every 4 minutes
-            if self.flood_countdown.elapsed() >= Duration::from_secs(240) {
+            // Flood request every 1 minute
+            if self.flood_countdown.elapsed() >= Duration::from_secs(60) {
                 self.init_flood_request();
             }
 
