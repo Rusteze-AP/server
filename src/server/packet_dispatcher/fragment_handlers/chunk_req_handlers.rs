@@ -40,7 +40,7 @@ impl Server {
 
                 // Build ChunkResponse
                 let chunk_data = Bytes::from(segment);
-                let chunk_res = ChunkResponse::new(message.file_hash, *chunk_index, chunk_data);
+                let chunk_res = ChunkResponse::new(message.file_hash, *chunk_index, 0, chunk_data);
 
                 // Retrieve new best path from server to client, otherwise use incoming one
                 let srh = if let Some(new_srh) = self.get_path(self.id, message.client_id) {
@@ -91,17 +91,23 @@ impl Server {
         let srh = if let Some(new_srh) = self.get_path(self.id, message.client_id) {
             new_srh
         } else {
-            self.logger
-                                     .log_error("[CHUNK RESPONSE - VIDEO] An error occurred: failed to get routing path, using reversed sender path");
+            self.logger.log_error("[CHUNK RESPONSE - VIDEO] An error occurred: failed to get routing path, using reversed sender path");
             addressee_srh.clone()
         };
         let next_hop = srh.hops[srh.hop_index];
+
+        let total_n_chunks = video_chunks.len() as u32;
 
         for (index, chunk) in video_chunks.enumerate() {
             let Ok(chunk_index) = u32::try_from(index) else {
                 return Err("Could not convert chunk_index to u32".to_string());
             };
-            let chunk_res = ChunkResponse::new(message.file_hash, chunk_index, chunk.clone());
+            let chunk_res = ChunkResponse::new(
+                message.file_hash,
+                chunk_index,
+                total_n_chunks,
+                chunk.clone(),
+            );
 
             // Disassemble ChunkResponse into Packets
             let packets = match self.packet_forge.disassemble(chunk_res.clone(), &srh) {
