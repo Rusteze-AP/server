@@ -6,7 +6,7 @@ mod video_chunker;
 
 use crate::database::Database;
 
-use crossbeam::channel::{select_biased, Receiver, Sender};
+use crossbeam::channel::{select_biased, Receiver, Sender, TryRecvError};
 use logger::{LogLevel, Logger};
 use packet_forge::{PacketForge, SessionIdT};
 use routing_handler::RoutingHandler;
@@ -97,24 +97,23 @@ impl Server {
                 self.init_flood_request();
             }
 
-            select_biased!(
-                recv(self.controller_recv) -> command => {
-                    if let Ok(command) = command {
-                        self.command_dispatcher(&command);
-                    } else {
-                        self.logger.log_error("Error receiving command!");
-                        break;
-                    }
-                },
-                recv(self.packet_recv) -> packet => {
-                    if let Ok(packet) = packet {
-                        self.packet_dispatcher(&packet);
-                    } else {
-                        self.logger.log_error("Error receiving message!");
-                        break;
-                    }
+            match self.controller_recv.try_recv() {
+                Ok(command) => self.command_dispatcher(&command),
+                Err(TryRecvError::Empty) => {}
+                Err(e) => {
+                    self.logger
+                        .log_error(&format!("Error receiving command: {e}"));
                 }
-            );
+            }
+
+            match self.packet_recv.try_recv() {
+                Ok(packet) => self.packet_dispatcher(&packet),
+                Err(TryRecvError::Empty) => {}
+                Err(e) => {
+                    self.logger
+                        .log_error(&format!("Error receiving message: {e}"));
+                }
+            }
         }
     }
 }

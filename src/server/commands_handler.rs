@@ -30,11 +30,11 @@ impl Server {
                 DroneCommand::RemoveSender(id) => {
                     self.init_flood_request();
                     self.remove_sender(*id)
-                },
+                }
                 DroneCommand::AddSender(id, sender) => {
                     self.init_flood_request();
                     self.add_sender(*id, sender)
-                },
+                }
                 DroneCommand::Crash => {
                     self.logger
                         .log_info("[SC COMMAND] - Received crash command. Terminating!");
