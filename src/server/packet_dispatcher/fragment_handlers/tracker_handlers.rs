@@ -255,6 +255,13 @@ impl Server {
                         path: srh.hops,
                     });
                 }
+
+                if *peer == self.id {
+                    return Some(PeerInfo {
+                        client_id: *peer,
+                        path: addressee_srh.hops.clone(),
+                    });
+                }
                 None
             })
             .collect();
