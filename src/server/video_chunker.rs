@@ -70,7 +70,7 @@ impl ExactSizeIterator for ChunkIterator {
 }
 
 pub fn get_video_chunks(video_data: Vec<u8>) -> ChunkIterator {
-    // Create the chunker with a 256KB chunk size
-    let chunker = VideoChunker::new(video_data, 512 * 512);
+    // Create the chunker with a 65KB chunk size
+    let chunker = VideoChunker::new(video_data, 256 * 256);
     ChunkIterator { chunker }
 }
